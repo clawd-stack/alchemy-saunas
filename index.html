@@ -849,6 +849,10 @@ function agentModelOpts(agentId){const cur=getAgentModel(agentId);return[['','�
 function getModel(){return localStorage.getItem('rit_model')||'claude-haiku-4-5-20251001';}
 function getThreshold(){return parseInt(localStorage.getItem('alchemy_complexity_threshold')||'5');}
 function getUser(id){return S.agents[id]||S.humans.find(h=>h.id===id)||S.currentUser;}
+// DM keys are scoped per-user: "dm:agentId:userId". Channel keys are shared: "channel:channelId".
+function viewKey(type,id){return type==='dm'&&S.currentUser?'dm:'+id+':'+S.currentUser.id:type+':'+id;}
+function curViewKey(){return viewKey(S.view.type,S.view.id);}
+function parseVKey(k){const p=k.split(':');return p[0]==='dm'&&p.length===3?{type:'dm',id:p[1]}:{type:p[0],id:p.slice(1).join(':')};}
 
 // ============ COWORK ROUTING ============
 let folderHandle=null;
@@ -1047,6 +1051,9 @@ function toggleSidebar(){
 
 function enterWorkspace(user){
   S.currentUser=user;
+  // Migrate legacy DM keys (dm:agentId) → user-scoped keys (dm:agentId:userId)
+  const legacyDMs=Object.keys(S.messages).filter(k=>k.startsWith('dm:')&&k.split(':').length===2);
+  if(legacyDMs.length){legacyDMs.forEach(k=>{const nk=k+':'+user.id;if(!S.messages[nk])S.messages[nk]=S.messages[k];delete S.messages[k];});save();}
   $('loginScreen').classList.add('hidden');
   $('workspace').classList.remove('hidden');
   $('loginName').value='';$('loginPin').value='';$('loginError').textContent='';$('loginError').style.color='';
@@ -1069,7 +1076,7 @@ function switchView(type,id){
 }
 
 function renderMsgs(){
-  const c=$('chatMsgs'),key=S.view.type+':'+S.view.id,msgs=S.messages[key]||[];
+  const c=$('chatMsgs'),key=curViewKey(),msgs=S.messages[key]||[];
   if(!msgs.length){const isCh=S.view.type==='channel';const ch=isCh?S.channels.find(x=>x.id===S.view.id):null;const ag=!isCh?S.agents[S.view.id]:null;
     c.innerHTML=`<div class="welcome-msg"><div style="font-size:36px;margin-bottom:12px">${isCh?'🔥':ag?.initials}</div><h2>${isCh?'#'+ch?.name:ag?.name}</h2><p>${isCh?(ch?.topic||'Start the conversation'):`DM with <strong>${ag?.name}</strong> — ${ag?.role}`}</p></div>`;return;}
   c.innerHTML=msgs.map(m=>{const u=getUser(m.uid);const isBot=!!S.agents[m.uid];const isDelegated=m.delegated;const isCoworkRouted=m.coworkRouted;
@@ -1334,7 +1341,7 @@ async function sendMsg(){const input=$('msgInput'),text=input.value.trim();if((!
   const sdmResult=await sdmCheck(text,pendingAttachment);
   if(sdmResult==='cancel'||sdmResult==='edit')return;
   if(sdmResult==='remove-file')clearChatAttachment();
-  const key=S.view.type+':'+S.view.id;const att=pendingAttachment;
+  const key=curViewKey();const att=pendingAttachment;
   const extra=sdmResult==='send-anyway'?{acknowledged:true}:{};
   addMsg(key,S.currentUser.id,text,att,extra);clearChatAttachment();input.value='';input.style.height='auto';renderMsgs();
   let respondents=[];if(S.view.type==='dm'){respondents=[S.view.id];}else{const chAgs=S.chAgents[S.view.id]||['sage'];const mentioned=Object.keys(S.agents).filter(id=>text.toLowerCase().includes('@'+id));respondents=mentioned.length?mentioned:[chAgs[0]];}
@@ -1532,7 +1539,8 @@ function performSearch(query){
   if(!tokens.length)return[];
   const results=[];
   for(const[vKey,msgs]of Object.entries(S.messages)){
-    const ci=vKey.indexOf(':');const type=vKey.slice(0,ci);const id=vKey.slice(ci+1);
+    if(vKey.startsWith('dm:')&&!vKey.endsWith(':'+(S.currentUser?.id||'')))continue;
+    const{type,id}=parseVKey(vKey);
     for(let i=0;i<msgs.length;i++){
       const m=msgs[i];
       if(!m.text||m.delegated)continue;
@@ -1593,7 +1601,7 @@ function renderSearchResults(results,query){
 
 function navigateToResult(vKey,msgIdx){
   closeSearch();
-  const ci=vKey.indexOf(':');const type=vKey.slice(0,ci);const id=vKey.slice(ci+1);
+  const{type,id}=parseVKey(vKey);
   switchView(type,id);
   setTimeout(()=>{
     const els=$('chatMsgs').querySelectorAll('.msg');
@@ -1617,7 +1625,7 @@ document.addEventListener('keydown',e=>{
   // Up arrow in empty message input: restore last sent message
   const mi=$('msgInput');
   if(e.key==='ArrowUp'&&mi&&e.target===mi&&!mi.value.trim()){
-    const key=S.view.type+':'+S.view.id;
+    const key=curViewKey();
     const msgs=S.messages[key]||[];
     const last=[...msgs].reverse().find(m=>m.uid===S.currentUser?.id);
     if(last){e.preventDefault();mi.value=last.text;mi.style.height='auto';mi.style.height=Math.min(mi.scrollHeight,180)+'px';setTimeout(()=>{mi.selectionStart=mi.selectionEnd=last.text.length;},0);}
@@ -1720,7 +1728,7 @@ async function saveCustomAgent(){
 async function deleteCustomAgent(id){
   const a=S.agents[id];if(!a||!a.custom)return;
   if(!confirm(`Delete "${a.name}"? All conversation history with this agent will also be removed. This cannot be undone.`))return;
-  delete S.agents[id];delete S.messages['dm:'+id];
+  delete S.agents[id];Object.keys(S.messages).filter(k=>k==='dm:'+id||k.startsWith('dm:'+id+':')).forEach(k=>delete S.messages[k]);
   localStorage.removeItem('alchemy_agent_key_'+id);localStorage.removeItem('alchemy_agent_model_'+id);
   save();
   if(S.view.type==='dm'&&S.view.id===id)switchView('channel','general');
