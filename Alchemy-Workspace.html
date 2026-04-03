@@ -50,10 +50,6 @@ body { font-family:'Segoe UI',system-ui,-apple-system,sans-serif; background:var
 /* WORKSPACE */
 .workspace { display:flex;height:100vh; }
 .workspace.hidden { display:none; }
-.ws-rail { width:68px;background:var(--bg-darkest);display:flex;flex-direction:column;align-items:center;padding:12px 0;border-right:1px solid var(--border); }
-.ws-logo { width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,var(--accent),#c46a20);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:18px;color:#fff;margin-bottom:16px; }
-.ws-rail-user { margin-top:auto;width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;cursor:pointer;position:relative;color:#fff; }
-.ws-rail-user .dot { position:absolute;bottom:-1px;right:-1px;width:10px;height:10px;background:var(--green);border:2px solid var(--bg-darkest);border-radius:50%; }
 
 .ch-side { width:240px;background:var(--bg-sidebar);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;transition:width .25s ease,border .25s ease; }
 .ch-side.collapsed { width:0;border-right-color:transparent; }
@@ -296,10 +292,6 @@ body { font-family:'Segoe UI',system-ui,-apple-system,sans-serif; background:var
 </div>
 
 <div class="workspace hidden" id="workspace">
-  <div class="ws-rail">
-    <div class="ws-logo">A</div>
-    <div class="ws-rail-user" id="wsUser" onclick="openProfile(S.currentUser.id)"><div class="dot"></div></div>
-  </div>
   <div class="ch-side">
     <div class="ch-head"><h2>Alchemy HQ</h2></div>
     <div class="ch-scroll">
@@ -780,7 +772,7 @@ function toggleAbout(){const s=$('aboutSection'),c=$('aboutChevron');const open=
 function openApi(){$('modelSelect').value=getModel();$('complexitySlider').value=getThreshold();$('sliderVal').textContent=getThreshold();updateFolderStatus(!!folderHandle);const wkInput=$('wsDefaultKey');wkInput.value='';wkInput.placeholder=hasWorkspaceKey()?'Workspace key saved — paste new key to update':'sk-ant-api03-...';$('apiModal').classList.add('active');}
 async function saveApiKey(){localStorage.setItem('rit_model',$('modelSelect').value);localStorage.setItem('alchemy_complexity_threshold',$('complexitySlider').value);const wsKey=$('wsDefaultKey').value.trim();if(wsKey)await saveWorkspaceKey(wsKey);$('apiModal').classList.remove('active');}
 
-function renderWS(){const u=S.currentUser;const el=$('wsUser');el.style.background=u.color;el.innerHTML=u.initials+'<div class="dot"></div>';renderChList();renderDmList();switchView(S.view.type,S.view.id);}
+function renderWS(){renderChList();renderDmList();switchView(S.view.type,S.view.id);}
 function renderChList(){$('chList').innerHTML=S.channels.map(c=>`<li class="${S.view.type==='channel'&&S.view.id===c.id?'active':''}" onclick="switchView('channel','${c.id}')"><span class="hash">#</span>${c.name}</li>`).join('');}
 function renderDmList(){$('dmList').innerHTML=Object.values(S.agents).map(a=>`<li class="${S.view.type==='dm'&&S.view.id===a.id?'active':''}" onclick="switchView('dm','${a.id}')"><div class="dm-av" style="background:${a.color}">${a.initials}</div>${a.name}<div class="dm-dot" style="background:var(--green)"></div></li>`).join('');}
 
