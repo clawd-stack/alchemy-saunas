@@ -1107,7 +1107,9 @@ function openProfile(uid){
           ${u.custom?`<div class="profile-field"><label>System Prompt</label><textarea id="pf_system" style="min-height:120px;resize:vertical">${esc(u.system||'')}</textarea><div style="font-size:11px;color:var(--text-dim);margin-top:4px">Core personality and instructions for this agent.</div></div>`:''}
           </div>
         <div class="profile-section"><h4>API Configuration</h4>
-          ${!hasAgentKey(uid)&&!hasWorkspaceKey()?`<div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:rgba(231,76,60,.1);border:1px solid rgba(231,76,60,.3);border-radius:8px;margin-bottom:12px;font-size:12px;color:#e74c3c">⚠️ No API key configured — set a <strong style="cursor:pointer;text-decoration:underline" onclick="closeProfile();openApi()">workspace default key</strong> or paste one below before this agent can respond.</div>`:''}
+          ${uid==='dev'
+            ?(!hasWorkspaceKey()?`<div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:rgba(231,76,60,.1);border:1px solid rgba(231,76,60,.3);border-radius:8px;margin-bottom:12px;font-size:12px;color:#e74c3c">⚠️ No API key configured — needed when the bridge server (localhost:3456) is offline. <strong style="cursor:pointer;text-decoration:underline" onclick="closeProfile();openApi()">Set workspace default key</strong> or start the bridge server.</div>`:'')
+            :(!hasAgentKey(uid)&&!hasWorkspaceKey()?`<div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:rgba(231,76,60,.1);border:1px solid rgba(231,76,60,.3);border-radius:8px;margin-bottom:12px;font-size:12px;color:#e74c3c">⚠️ No API key configured — set a <strong style="cursor:pointer;text-decoration:underline" onclick="closeProfile();openApi()">workspace default key</strong> or paste one below before this agent can respond.</div>`:'')}
           <div class="profile-field"><label>Anthropic API Key</label><input type="password" id="pf_apikey" placeholder="${hasAgentKey(uid)?'Agent key saved — paste new key to update':hasWorkspaceKey()?'Using workspace default key — paste a different key here to override':'sk-ant-api03-...'}" value=""><div style="font-size:11px;color:var(--text-dim);margin-top:4px">${hasAgentKey(uid)?`This agent uses its own key.`:hasWorkspaceKey()?`Using the workspace default key. Paste a key here to override for ${esc(u.name)} only.`:`No key set. You can set a workspace default key in Workspace Settings, or paste one here for ${esc(u.name)} only.`} Stored encrypted in your browser.</div></div>
           <div class="profile-field"><label>Model <span style="color:var(--text-dim)">(optional override)</span></label><select id="pf_model">${agentModelOpts(uid)}</select></div></div>
         <div class="profile-section"><h4>Personality & Instructions</h4>
@@ -1384,7 +1386,12 @@ async function callAgent(vKey,agentId){
     if(forceCowork||complexity>=threshold){const delegated=await delegateToCowork(vKey,agentId);if(delegated)return;}
   }
   const agentKey=await getAgentKey(agentId);
-  if(!agentKey){addMsg(vKey,agentId,`⚠️ **No API key set** for ${a.name}. Set a **workspace default key** in Workspace Settings (⚙️ top-right), or open ${a.name}'s profile and add a key under **API Configuration**.`);renderMsgs();return;}
+  if(!agentKey){
+    $('typingInd').classList.remove('show');
+    addMsg(vKey,agentId,agentId==='dev'
+      ?`⚠️ **Dev agent unavailable**: The Claude Code bridge server (localhost:3456) is offline, and no API key is configured for fallback. Start the bridge server with \`node server.js\`, or set a **workspace default key** in ⚙️ Workspace Settings.`
+      :`⚠️ **No API key set** for ${a.name}. Set a **workspace default key** in Workspace Settings (⚙️ top-right), or open ${a.name}'s profile and add a key under **API Configuration**.`);
+    renderMsgs();return;}
   streaming=true;$('sendBtn').disabled=true;
   const ti=$('typingInd');ti.textContent=`${a.initials} ${a.name} is typing...`;ti.classList.add('show');
   const hist=(S.messages[vKey]||[]).slice(-20).map(m=>{
