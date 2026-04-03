@@ -114,6 +114,12 @@ body { font-family:'Segoe UI',system-ui,-apple-system,sans-serif; background:var
 .send-btn { padding:6px 14px;background:var(--accent);color:#fff;border:none;border-radius:6px;font-weight:700;font-size:13px;cursor:pointer; }
 .send-btn:hover { opacity:.9; }
 .send-btn:disabled { opacity:.3;cursor:not-allowed; }
+.deep-mode-btn { display:flex;align-items:center;gap:5px;padding:4px 10px;background:none;border:1px solid var(--border);border-radius:12px;color:var(--text-muted);font-size:11px;font-weight:600;cursor:pointer;transition:all .15s;letter-spacing:.3px;white-space:nowrap; }
+.deep-mode-btn:hover { border-color:var(--accent);color:var(--accent); }
+.deep-mode-btn.active { background:var(--accent-dim);border-color:var(--accent);color:var(--accent); }
+.deep-mode-btn .dm-dot { width:6px;height:6px;border-radius:50%;background:currentColor;transition:all .15s; }
+.deep-mode-btn.active .dm-dot { box-shadow:0 0 6px var(--accent); }
+.input-wrap.deep-active { border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-dim); }
 
 .members-pnl { width:0;overflow:hidden;border-left:1px solid var(--border);background:var(--bg-sidebar);transition:width .2s; }
 .members-pnl.open { width:240px; }
@@ -171,6 +177,21 @@ body { font-family:'Segoe UI',system-ui,-apple-system,sans-serif; background:var
 .modal-btns { margin-top:20px;display:flex;gap:8px;justify-content:flex-end; }
 .modal-btns button { padding:8px 20px;border-radius:6px;border:1px solid var(--border);background:none;color:var(--text);cursor:pointer;font-size:13px; }
 .modal-btns .primary { background:var(--accent);color:#fff;border-color:var(--accent);font-weight:700; }
+
+/* Sensitive Data Monitor */
+.sdm-modal { background:var(--bg-channels);border:1px solid var(--border);border-radius:12px;padding:28px;width:540px;max-width:96vw;max-height:80vh;overflow-y:auto; }
+.sdm-modal h2 { color:var(--red);margin-bottom:6px;font-size:18px;display:flex;align-items:center;gap:8px; }
+.sdm-subtitle { font-size:13px;color:var(--text-muted);margin-bottom:16px;line-height:1.5; }
+.sdm-findings { display:flex;flex-direction:column;gap:8px;margin-bottom:20px;max-height:260px;overflow-y:auto; }
+.sdm-finding { background:var(--bg-darkest);border:1px solid rgba(231,76,60,.25);border-radius:8px;padding:10px 12px; }
+.sdm-finding-type { font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--red);margin-bottom:4px; }
+.sdm-finding-preview { font-size:12px;color:var(--text-muted);font-family:'Consolas','Courier New',monospace;white-space:pre-wrap;word-break:break-all; }
+.sdm-btns { display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-top:4px; }
+.sdm-btns button { padding:8px 16px;border-radius:6px;border:1px solid var(--border);background:none;color:var(--text);cursor:pointer;font-size:13px;font-family:inherit; }
+.sdm-btns button:hover { background:var(--bg-hover); }
+.sdm-btns .sdm-danger { background:var(--red);color:#fff;border-color:var(--red);font-weight:700; }
+.sdm-btns .sdm-danger:hover { opacity:.88; }
+.sdm-acknowledged { font-size:10px;color:var(--red);padding:1px 5px;border:1px solid rgba(231,76,60,.4);border-radius:3px;opacity:.7;margin-left:2px;vertical-align:middle; }
 
 /* Cowork routing */
 .complexity-section { margin-top:16px;padding-top:16px;border-top:1px solid var(--border); }
@@ -267,6 +288,59 @@ body { font-family:'Segoe UI',system-ui,-apple-system,sans-serif; background:var
 .msg-attach-file { display:inline-flex;align-items:center;gap:6px;background:var(--bg-hover);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;color:var(--text);text-decoration:none; }
 .msg-attach-file:hover { border-color:var(--accent);color:var(--accent); }
 .msg-attach-size { color:var(--text-dim);font-size:11px; }
+
+/* ONBOARDING */
+.onboarding-screen { position:fixed;inset:0;background:var(--bg-darkest);display:flex;align-items:center;justify-content:center;z-index:200; }
+.onboarding-screen.hidden { display:none; }
+.onboarding-box { background:var(--bg-channels);border:1px solid var(--border);border-radius:20px;padding:40px;width:520px;max-width:94vw;max-height:90vh;overflow-y:auto; }
+.ob-step { display:none; }
+.ob-step.active { display:block;animation:obIn .3s ease; }
+@keyframes obIn { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+.ob-dots { display:flex;align-items:center;justify-content:center;gap:8px;margin-top:28px; }
+.ob-dot { width:8px;height:8px;border-radius:50%;background:var(--border);transition:all .25s; }
+.ob-dot.active { background:var(--accent);width:24px;border-radius:4px; }
+.ob-dot.done { background:var(--accent-dim); }
+.ob-nav { display:flex;align-items:center;justify-content:space-between;margin-top:16px; }
+.ob-btn { padding:9px 20px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:none;color:var(--text-muted);font-family:inherit; }
+.ob-btn:hover { color:var(--text);border-color:var(--accent); }
+.ob-btn-primary { background:var(--accent);color:#fff;border-color:var(--accent); }
+.ob-btn-primary:hover { opacity:.9; }
+.ob-skip { background:none;border:none;color:var(--text-dim);font-size:12px;cursor:pointer;padding:4px;font-family:inherit; }
+.ob-skip:hover { color:var(--text-muted); }
+.agent-cards { position:relative;min-height:148px;margin:16px 0 4px; }
+.agent-card { background:var(--bg-darkest);border:1px solid var(--border);border-radius:12px;padding:20px;display:none; }
+.agent-card.active { display:block;animation:obIn .2s ease; }
+.agent-card-emoji { font-size:34px;margin-bottom:10px; }
+.agent-card-name { font-size:18px;font-weight:700;color:var(--text);margin-bottom:3px; }
+.agent-card-role { font-size:11px;color:var(--accent);font-weight:600;text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px; }
+.agent-card-desc { font-size:13px;color:var(--text-muted);line-height:1.6; }
+.agent-nav { display:flex;align-items:center;justify-content:space-between;margin-top:10px; }
+.agent-nav-btn { background:none;border:1px solid var(--border);border-radius:6px;color:var(--text-muted);padding:5px 14px;font-size:12px;cursor:pointer;font-family:inherit; }
+.agent-nav-btn:hover { border-color:var(--accent);color:var(--accent); }
+.agent-counter { font-size:12px;color:var(--text-dim); }
+.feature-grid { display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:16px 0; }
+.feature-card { background:var(--bg-darkest);border:1px solid var(--border);border-radius:10px;padding:14px; }
+.feature-card-icon { font-size:20px;margin-bottom:7px; }
+.feature-card-title { font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px;display:flex;align-items:center;gap:6px;flex-wrap:wrap; }
+.feature-card-desc { font-size:12px;color:var(--text-muted);line-height:1.5; }
+.feature-card kbd { display:inline-block;background:var(--bg-active);border:1px solid var(--border);border-radius:4px;padding:1px 6px;font-size:10px;color:var(--accent);font-weight:700;font-family:inherit; }
+.ob-api-note { font-size:12px;color:var(--text-dim);line-height:1.7;margin:10px 0 14px;padding:10px 12px;background:var(--bg-darkest);border:1px solid var(--border);border-radius:8px; }
+.ob-finish-icon { font-size:52px;text-align:center;margin:8px 0 14px; }
+
+/* CUSTOM AGENT CREATION */
+.ca-color-swatches { display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:4px; }
+.ca-swatch { width:28px;height:28px;border-radius:6px;cursor:pointer;border:2px solid transparent;transition:border-color .1s;flex-shrink:0; }
+.ca-swatch:hover { border-color:rgba(255,255,255,.5); }
+.ca-swatch.selected { border-color:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.4); }
+.ca-color-custom { position:relative;width:28px;height:28px;border-radius:6px;border:2px solid var(--border);overflow:hidden;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px; }
+.ca-color-custom input[type=color] { position:absolute;inset:-4px;width:calc(100% + 8px);height:calc(100% + 8px);opacity:0;cursor:pointer; }
+/* DM list action buttons for custom agents */
+.dm-item-actions { margin-left:auto;display:flex;gap:2px;opacity:0;transition:opacity .15s; }
+.ch-list li:hover .dm-item-actions { opacity:1; }
+.dm-action-btn { background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:12px;padding:3px 5px;border-radius:4px;line-height:1; }
+.dm-action-btn:hover { color:var(--accent);background:var(--bg-active); }
+.dm-action-btn.danger:hover { color:var(--red); }
+.create-agent-modal { width:500px;max-width:96vw;max-height:90vh;overflow-y:auto; }
 </style>
 </head>
 <body>
@@ -291,13 +365,97 @@ body { font-family:'Segoe UI',system-ui,-apple-system,sans-serif; background:var
   </div>
 </div>
 
+<!-- ONBOARDING WIZARD -->
+<div class="onboarding-screen hidden" id="onboardingScreen">
+  <div class="onboarding-box">
+    <!-- Step 1: Welcome -->
+    <div class="ob-step" id="ob-step-0">
+      <div style="text-align:center;padding:8px 0">
+        <div style="font-size:52px;margin-bottom:16px">🔥</div>
+        <h1 style="color:var(--accent);font-size:22px;letter-spacing:3px;font-weight:300;margin-bottom:6px">WELCOME TO</h1>
+        <h2 style="color:var(--text);font-size:24px;font-weight:700;margin-bottom:18px">Alchemy HQ</h2>
+        <p style="color:var(--text-muted);font-size:14px;line-height:1.8;max-width:380px;margin:0 auto">Your AI-powered team workspace for <strong style="color:var(--warm)">Alchemy Saunas</strong>. Seven specialist agents are here to help you run the business — from marketing and ops to finance and people.</p>
+        <p style="color:var(--text-dim);font-size:12px;margin-top:14px">This quick guide takes about 60 seconds.</p>
+      </div>
+    </div>
+    <!-- Step 2: Meet Your Team -->
+    <div class="ob-step" id="ob-step-1">
+      <h2 style="color:var(--accent);font-size:16px;font-weight:600;margin-bottom:4px">Meet Your Team</h2>
+      <p style="color:var(--text-muted);font-size:13px">Seven AI agents, each with a specialty. Click through to meet them.</p>
+      <div class="agent-cards" id="agentCardsWrap"></div>
+      <div class="agent-nav">
+        <button class="agent-nav-btn" id="agentPrev" onclick="obAgentNav(-1)">← Prev</button>
+        <span class="agent-counter" id="agentCounter">1 / 7</span>
+        <button class="agent-nav-btn" id="agentNext" onclick="obAgentNav(1)">Next →</button>
+      </div>
+    </div>
+    <!-- Step 3: Key Features -->
+    <div class="ob-step" id="ob-step-2">
+      <h2 style="color:var(--accent);font-size:16px;font-weight:600;margin-bottom:4px">Key Features</h2>
+      <p style="color:var(--text-muted);font-size:13px">Everything you need to work with your team effectively.</p>
+      <div class="feature-grid">
+        <div class="feature-card">
+          <div class="feature-card-icon">🔍</div>
+          <div class="feature-card-title">Search <kbd>Ctrl+K</kbd></div>
+          <div class="feature-card-desc">Search across all conversations and channels instantly.</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-card-icon">📎</div>
+          <div class="feature-card-title">File Uploads</div>
+          <div class="feature-card-desc">Attach images, PDFs, or documents to any message for agents to review.</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-card-icon">⌨️</div>
+          <div class="feature-card-title">Shortcuts <kbd>Ctrl+?</kbd></div>
+          <div class="feature-card-desc">View all keyboard shortcuts. Navigate channels fast with <kbd>Ctrl+1–9</kbd>.</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-card-icon">💬</div>
+          <div class="feature-card-title">Channels</div>
+          <div class="feature-card-desc">Dedicated channels for Marketing, Ops, Finance, People & more. Each has the right agents.</div>
+        </div>
+      </div>
+    </div>
+    <!-- Step 4: API Setup -->
+    <div class="ob-step" id="ob-step-3">
+      <h2 style="color:var(--accent);font-size:16px;font-weight:600;margin-bottom:4px">⚙ API Setup</h2>
+      <p style="color:var(--text-muted);font-size:13px;margin-bottom:0">Agents need an Anthropic API key to respond. You can add one now or later in Settings.</p>
+      <div class="ob-api-note">🔑 Your key is stored <strong style="color:var(--text)">encrypted in this browser only</strong> — it never leaves your device.<br>Get a key at <strong style="color:var(--text)">console.anthropic.com</strong></div>
+      <div class="login-form">
+        <div>
+          <label for="obApiKey">Workspace API Key <span style="color:var(--text-dim)">(optional)</span></label>
+          <input id="obApiKey" type="password" placeholder="sk-ant-api03-..." autocomplete="off">
+        </div>
+      </div>
+      <p style="color:var(--text-dim);font-size:11px;margin-top:10px">Skipping? Add it any time via <strong style="color:var(--text-muted)">⚙ Settings</strong> in the workspace header.</p>
+    </div>
+    <!-- Step 5: You're Ready -->
+    <div class="ob-step" id="ob-step-4">
+      <div style="text-align:center;padding:8px 0">
+        <div class="ob-finish-icon">✅</div>
+        <h2 style="color:var(--text);font-size:22px;font-weight:700;margin-bottom:10px">You're all set!</h2>
+        <p style="color:var(--text-muted);font-size:14px;line-height:1.75;max-width:340px;margin:0 auto 24px">Your workspace is ready. Jump into <strong style="color:var(--accent)">#general</strong> to talk to the whole team, or DM any agent directly from the sidebar.</p>
+        <button class="login-btn" style="width:auto;padding:12px 40px;font-size:15px;display:inline-block" onclick="finishOnboarding()">Start Working →</button>
+      </div>
+    </div>
+    <!-- Progress dots -->
+    <div class="ob-dots" id="obDots"></div>
+    <!-- Navigation -->
+    <div class="ob-nav">
+      <button class="ob-btn" id="obBackBtn" onclick="obNav(-1)">← Back</button>
+      <button class="ob-skip" onclick="skipOnboarding()">Skip onboarding</button>
+      <button class="ob-btn ob-btn-primary" id="obNextBtn" onclick="obNav(1)">Next →</button>
+    </div>
+  </div>
+</div>
+
 <div class="workspace hidden" id="workspace">
   <div class="ch-side">
     <div class="ch-head"><h2>Alchemy HQ</h2></div>
     <div class="ch-scroll">
       <div class="sec-title">Channels <button onclick="openNewCh()">+</button></div>
       <ul class="ch-list" id="chList"></ul>
-      <div class="sec-title">Direct Messages</div>
+      <div class="sec-title">Direct Messages <button onclick="openCreateAgent()">+</button></div>
       <ul class="ch-list" id="dmList"></ul>
     </div>
   </div>
@@ -315,9 +473,12 @@ body { font-family:'Segoe UI',system-ui,-apple-system,sans-serif; background:var
           oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,180)+'px'"></textarea>
         <div id="chatAttachPreview" class="chat-attach-preview" style="display:none"></div>
         <div class="input-bottom">
-          <div>
+          <div style="display:flex;align-items:center;gap:8px">
             <button class="attach-btn" onclick="openChatFileInput()" title="Attach file">📎</button>
             <input type="file" id="chatFileInput" accept="image/*,.pdf,.doc,.docx,.txt,.md" style="display:none" onchange="handleChatFile(this)">
+            <button class="deep-mode-btn" id="deepModeBtn" onclick="toggleDeepMode()" title="Force this message through Cowork deep processing">
+              <span class="dm-dot"></span>Deep Mode
+            </button>
           </div>
           <button class="send-btn" id="sendBtn" onclick="sendMsg()">Send</button>
         </div>
@@ -485,6 +646,55 @@ body { font-family:'Segoe UI',system-ui,-apple-system,sans-serif; background:var
     </div>
     <div class="search-results" id="searchResults"><div class="search-empty">Type to search across all conversations</div></div>
     <div class="search-count" id="searchCount"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="sdmModal">
+  <div class="sdm-modal">
+    <h2>⚠ Sensitive Data Detected</h2>
+    <p class="sdm-subtitle" id="sdmSubtitle"></p>
+    <div class="sdm-findings" id="sdmFindings"></div>
+    <div class="sdm-btns">
+      <button onclick="sdmAction('cancel')">Cancel</button>
+      <button onclick="sdmAction('edit')">Edit Message</button>
+      <button id="sdmRemoveFileBtn" onclick="sdmAction('remove-file')" style="display:none">Remove File</button>
+      <button class="sdm-danger" onclick="sdmAction('send-anyway')">Send Anyway</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="createAgentModal" onclick="if(event.target===this)closeCreateAgent()">
+  <div class="modal create-agent-modal">
+    <h2 id="caTitle">Create Custom Agent</h2>
+    <label>Agent Name</label>
+    <input id="ca_name" placeholder="e.g. Scout, Aria, Dispatch" autocomplete="off">
+    <div style="display:flex;gap:12px;margin-top:4px">
+      <div style="flex:0 0 84px">
+        <label>Emoji</label>
+        <input id="ca_emoji" placeholder="🤖" maxlength="4" style="font-size:20px;text-align:center;padding:8px 4px">
+      </div>
+      <div style="flex:1">
+        <label>Role / Title</label>
+        <input id="ca_role" placeholder="e.g. Research Assistant">
+      </div>
+    </div>
+    <label>Colour</label>
+    <div class="ca-color-swatches" id="caSwatches"></div>
+    <label style="margin-top:14px">System Prompt</label>
+    <textarea id="ca_system" style="min-height:130px;resize:vertical" placeholder="Describe this agent's personality, role, and instructions…&#10;&#10;Example: You are Scout, a research assistant for Alchemy Saunas. You help find information, summarise articles, and compile reports. Be concise and cite your sources."></textarea>
+    <label>Model <span style="color:var(--text-dim);font-weight:400">(optional override)</span></label>
+    <select id="ca_model">
+      <option value="">— Use workspace default —</option>
+      <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5 (Cheapest)</option>
+      <option value="claude-sonnet-4-6">Claude Sonnet 4.6 (Mid-range)</option>
+      <option value="claude-opus-4-6">Claude Opus 4.6 (Best)</option>
+    </select>
+    <label>API Key <span style="color:var(--text-dim);font-weight:400">(optional — uses workspace default if blank)</span></label>
+    <input type="password" id="ca_apikey" placeholder="sk-ant-api03-… or leave blank">
+    <div class="modal-btns">
+      <button onclick="closeCreateAgent()">Cancel</button>
+      <button class="primary" id="caSaveBtn" onclick="saveCustomAgent()">Create Agent</button>
+    </div>
   </div>
 </div>
 
@@ -709,6 +919,73 @@ function savePin(uid,pin){const pins=getPins();pins[uid]=pin;localStorage.setIte
 
 function loginClearError(){$('loginError').textContent='';}
 
+// ============ ONBOARDING ============
+const OB_TOTAL = 5;
+let obStep = 0, obAgentIdx = 0, obUser = null;
+
+const OB_AGENTS = [
+  {emoji:'🧭',name:'Nexus',role:'Chief of Staff',desc:'Your right-hand coordinator and GM proxy. Prioritises tasks, delegates work across the team, and keeps the whole business aligned.'},
+  {emoji:'🔥',name:'Blaze',role:'Marketing & Growth',desc:'Campaigns, social media, content, and promotions. Blaze helps grow the brand and bring in new members.'},
+  {emoji:'♨️',name:'Ember',role:'Operations & Venues',desc:'Day-to-day venue management — scheduling, maintenance, safety protocols, and member experience.'},
+  {emoji:'💰',name:'Ledger',role:'Finance & Memberships',desc:'Revenue forecasting, expense tracking, membership pricing models, and P&L analysis.'},
+  {emoji:'💜',name:'Harmony',role:'People & Culture',desc:'Hiring, onboarding, staff training, culture building, and keeping the team happy.'},
+  {emoji:'📋',name:'Sage',role:'Admin & Coordination',desc:'General admin, document management, meeting coordination, and keeping everything organised. Present in every channel.'},
+  {emoji:'⚡',name:'Dev',role:'Developer',desc:'Real coding tasks using Claude Code — reads files, writes code, and makes changes directly to the codebase. Needs the local bridge server running.'},
+];
+
+function showOnboarding(user){
+  obUser=user; obStep=0; obAgentIdx=0;
+  $('agentCardsWrap').innerHTML=OB_AGENTS.map((a,i)=>`<div class="agent-card${i===0?' active':''}" id="ob-ag-${i}"><div class="agent-card-emoji">${a.emoji}</div><div class="agent-card-name">${a.name}</div><div class="agent-card-role">${a.role}</div><div class="agent-card-desc">${a.desc}</div></div>`).join('');
+  $('loginScreen').classList.add('hidden');
+  $('onboardingScreen').classList.remove('hidden');
+  $('loginError').textContent='';$('loginError').style.color='';
+  renderObStep();
+}
+
+function renderObStep(){
+  for(let i=0;i<OB_TOTAL;i++) $('ob-step-'+i).classList.toggle('active',i===obStep);
+  $('obBackBtn').style.visibility=obStep===0?'hidden':'visible';
+  const nb=$('obNextBtn');
+  const isLast=obStep===OB_TOTAL-1;
+  nb.style.display=isLast?'none':'';
+  if(!isLast) nb.textContent=obStep===OB_TOTAL-2?"I'm ready →":'Next →';
+  $('obDots').innerHTML=Array.from({length:OB_TOTAL},(_,i)=>`<div class="ob-dot${i===obStep?' active':i<obStep?' done':''}"></div>`).join('');
+  if(obStep===1) renderObAgent();
+}
+
+function renderObAgent(){
+  document.querySelectorAll('.agent-card').forEach((c,i)=>c.classList.toggle('active',i===obAgentIdx));
+  $('agentCounter').textContent=(obAgentIdx+1)+' / '+OB_AGENTS.length;
+  $('agentPrev').style.visibility=obAgentIdx===0?'hidden':'visible';
+  $('agentNext').textContent=obAgentIdx===OB_AGENTS.length-1?'All done ✓':'Next →';
+}
+
+function obAgentNav(dir){
+  const n=obAgentIdx+dir;
+  if(n<0||n>=OB_AGENTS.length)return;
+  obAgentIdx=n; renderObAgent();
+}
+
+function obNav(dir){
+  const n=obStep+dir;
+  if(n<0||n>=OB_TOTAL)return;
+  obStep=n; renderObStep();
+}
+
+async function finishOnboarding(){
+  const keyVal=$('obApiKey').value.trim();
+  if(keyVal) await saveWorkspaceKey(keyVal);
+  completeOnboarding();
+}
+
+function skipOnboarding(){ completeOnboarding(); }
+
+function completeOnboarding(){
+  if(obUser) localStorage.setItem('alchemy_onboarded_'+obUser.id,'1');
+  $('onboardingScreen').classList.add('hidden');
+  enterWorkspace(obUser);
+}
+
 async function doLogin(){
   const nameRaw=$('loginName').value.trim();
   const pin=$('loginPin').value.trim();
@@ -723,12 +1000,15 @@ async function doLogin(){
     sessionCryptoKey=await deriveKey(pin,user.id);
     $('loginPinLabel').textContent='4-digit PIN';
     if(!user.pinSet){
-      // Genuine first-time PIN creation — show welcome once
+      // Genuine first-time PIN creation — show onboarding once
       user.pinSet=true;
       save();
       $('loginError').style.color='var(--green)';
       $('loginError').textContent='PIN set! Welcome, '+user.name+'.';
-      setTimeout(()=>enterWorkspace(user),700);
+      setTimeout(()=>{
+        const alreadyOnboarded=localStorage.getItem('alchemy_onboarded_'+user.id);
+        if(alreadyOnboarded){ enterWorkspace(user); } else { showOnboarding(user); }
+      },700);
       return;
     }
     // PIN storage was cleared but user already existed — just log in
@@ -774,7 +1054,7 @@ async function saveApiKey(){localStorage.setItem('rit_model',$('modelSelect').va
 
 function renderWS(){renderChList();renderDmList();switchView(S.view.type,S.view.id);}
 function renderChList(){$('chList').innerHTML=S.channels.map(c=>`<li class="${S.view.type==='channel'&&S.view.id===c.id?'active':''}" onclick="switchView('channel','${c.id}')"><span class="hash">#</span>${c.name}</li>`).join('');}
-function renderDmList(){$('dmList').innerHTML=Object.values(S.agents).map(a=>`<li class="${S.view.type==='dm'&&S.view.id===a.id?'active':''}" onclick="switchView('dm','${a.id}')"><div class="dm-av" style="background:${a.color}">${a.initials}</div>${a.name}<div class="dm-dot" style="background:var(--green)"></div></li>`).join('');}
+function renderDmList(){$('dmList').innerHTML=Object.values(S.agents).map(a=>{const isCustom=!!a.custom;const rightEl=isCustom?`<div class="dm-item-actions"><button class="dm-action-btn" title="Edit agent" onclick="event.stopPropagation();openEditAgent('${a.id}')">✏</button><button class="dm-action-btn danger" title="Delete agent" onclick="event.stopPropagation();deleteCustomAgent('${a.id}')">✕</button></div>`:`<div class="dm-dot" style="background:var(--green)"></div>`;return`<li class="${S.view.type==='dm'&&S.view.id===a.id?'active':''}" onclick="switchView('dm','${a.id}')"><div class="dm-av" style="background:${a.color}">${a.initials}</div>${esc(a.name)}${rightEl}</li>`;}).join('');}
 
 function switchView(type,id){
   S.view={type,id};renderChList();renderDmList();
@@ -788,7 +1068,7 @@ function renderMsgs(){
   if(!msgs.length){const isCh=S.view.type==='channel';const ch=isCh?S.channels.find(x=>x.id===S.view.id):null;const ag=!isCh?S.agents[S.view.id]:null;
     c.innerHTML=`<div class="welcome-msg"><div style="font-size:36px;margin-bottom:12px">${isCh?'🔥':ag?.initials}</div><h2>${isCh?'#'+ch?.name:ag?.name}</h2><p>${isCh?(ch?.topic||'Start the conversation'):`DM with <strong>${ag?.name}</strong> — ${ag?.role}`}</p></div>`;return;}
   c.innerHTML=msgs.map(m=>{const u=getUser(m.uid);const isBot=!!S.agents[m.uid];const isDelegated=m.delegated;const isCoworkRouted=m.coworkRouted;
-    return `<div class="msg"><div class="msg-av" style="background:${u.color}" onclick="openProfile('${m.uid}')">${u.initials}</div><div class="msg-body"><div class="msg-hdr"><span class="msg-name ${isBot?'bot':''}" onclick="openProfile('${m.uid}')">${u.name}</span>${isBot?'<span class="msg-badge">AI</span>':''}${isCoworkRouted?'<span class="delegating-badge">via Cowork</span>':''}<span class="msg-time">${m.time}</span></div>${isDelegated?`<div class="delegating-msg"><span class="spin">⏳</span> Delegating to Claude Desktop... response incoming via your Max plan</div>`:`<div class="msg-text">${isBot?fmtMd(m.text):escH(m.text)}</div>${m.attachment?renderMsgAttachment(m.attachment):''}`}</div></div>`;
+    return `<div class="msg"><div class="msg-av" style="background:${u.color}" onclick="openProfile('${m.uid}')">${u.initials}</div><div class="msg-body"><div class="msg-hdr"><span class="msg-name ${isBot?'bot':''}" onclick="openProfile('${m.uid}')">${u.name}</span>${isBot?'<span class="msg-badge">AI</span>':''}${isCoworkRouted?'<span class="delegating-badge">via Cowork</span>':''}${m.acknowledged?'<span class="sdm-acknowledged" title="User acknowledged sensitive data warning">⚠ risk acknowledged</span>':''}<span class="msg-time">${m.time}</span></div>${isDelegated?`<div class="delegating-msg"><span class="spin">⏳</span> Delegating to Claude Desktop... response incoming via your Max plan</div>`:`<div class="msg-text">${isBot?fmtMd(m.text):escH(m.text)}</div>${m.attachment?renderMsgAttachment(m.attachment):''}`}</div></div>`;
   }).join('');c.scrollTop=c.scrollHeight;
 }
 
@@ -807,11 +1087,13 @@ function openProfile(uid){
   if(isAgent){const files=u.files||{};
     p.innerHTML=`<div class="profile-banner" style="background:linear-gradient(135deg,${u.color},${u.color}88)"><button class="profile-close" onclick="closeProfile()">✕</button></div>
       <div class="profile-avatar" style="background:${u.color}">${u.initials}</div>
-      <div class="profile-info"><div class="profile-name">${u.name} <span class="msg-badge">AI Agent</span></div><div class="profile-role">${u.role}</div>
+      <div class="profile-info"><div class="profile-name">${u.name} <span class="msg-badge">${u.custom?'Custom Agent':'AI Agent'}</span></div><div class="profile-role">${u.role}</div>
         <div class="profile-section"><h4>Edit Profile</h4>
           <div class="profile-field"><label>Name</label><input id="pf_name" value="${esc(u.name)}"></div>
           <div class="profile-field"><label>Role / Title</label><input id="pf_role" value="${esc(u.role)}"></div>
-          <div class="profile-field"><label>Description — What this agent is good at</label><textarea id="pf_desc">${esc(u.desc||'')}</textarea></div></div>
+          <div class="profile-field"><label>Description — What this agent is good at</label><textarea id="pf_desc">${esc(u.desc||'')}</textarea></div>
+          ${u.custom?`<div class="profile-field"><label>System Prompt</label><textarea id="pf_system" style="min-height:120px;resize:vertical">${esc(u.system||'')}</textarea><div style="font-size:11px;color:var(--text-dim);margin-top:4px">Core personality and instructions for this agent.</div></div>`:''}
+          </div>
         <div class="profile-section"><h4>API Configuration</h4>
           ${!hasAgentKey(uid)&&!hasWorkspaceKey()?`<div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:rgba(231,76,60,.1);border:1px solid rgba(231,76,60,.3);border-radius:8px;margin-bottom:12px;font-size:12px;color:#e74c3c">⚠️ No API key configured — set a <strong style="cursor:pointer;text-decoration:underline" onclick="closeProfile();openApi()">workspace default key</strong> or paste one below before this agent can respond.</div>`:''}
           <div class="profile-field"><label>Anthropic API Key</label><input type="password" id="pf_apikey" placeholder="${hasAgentKey(uid)?'Agent key saved — paste new key to update':hasWorkspaceKey()?'Using workspace default key — paste a different key here to override':'sk-ant-api03-...'}" value=""><div style="font-size:11px;color:var(--text-dim);margin-top:4px">${hasAgentKey(uid)?`This agent uses its own key.`:hasWorkspaceKey()?`Using the workspace default key. Paste a key here to override for ${esc(u.name)} only.`:`No key set. You can set a workspace default key in Workspace Settings, or paste one here for ${esc(u.name)} only.`} Stored encrypted in your browser.</div></div>
@@ -822,7 +1104,7 @@ function openProfile(uid){
           ${renderFU('agent','AGENT.MD','Role-specific instructions and capabilities',files.agent)}
           ${renderFU('context','CONTEXT.MD','Background knowledge, key facts, preferences',files.context)}
           ${renderFU('tools','TOOLS.MD','Available tools, integrations, and workflows',files.tools)}</div>
-        <div class="profile-btns"><button class="save" onclick="saveAP('${uid}')">Save Changes</button><button class="dm-btn" onclick="closeProfile();switchView('dm','${uid}')">💬 Message</button></div></div>`;
+        <div class="profile-btns"><button class="save" onclick="saveAP('${uid}')">Save Changes</button><button class="dm-btn" onclick="closeProfile();switchView('dm','${uid}')">💬 Message</button>${u.custom?`<button class="dm-btn" style="color:var(--red);border-color:rgba(231,76,60,.4)" onclick="deleteCustomAgent('${uid}')">Delete</button>`:''}</div></div>`;
   } else {
     const isMe=S.currentUser&&S.currentUser.id===uid;
     p.innerHTML=`<div class="profile-banner" style="background:linear-gradient(135deg,${u.color},${u.color}88)"><button class="profile-close" onclick="closeProfile()">✕</button></div>
@@ -849,7 +1131,7 @@ function renderFU(key,label,hint,existing){
 function handleF(key,input){const file=input.files[0];if(!file)return;const r=new FileReader();r.onload=function(e){const d=$('drop_'+key);d.dataset.fileName=file.name;d.dataset.fileContent=e.target.result;d.classList.add('has-file');d.innerHTML=`<div class="file-name">📄 ${esc(file.name)}</div><div class="file-preview">${esc(e.target.result.slice(0,120))}${e.target.result.length>120?'...':''}</div><button class="clear-file" onclick="event.stopPropagation();clearF('${key}')">✕</button><input type="file" id="file_${key}" accept=".md,.txt,.text" onchange="handleF('${key}',this)">`;};r.readAsText(file);}
 function clearF(key){const d=$('drop_'+key);d.classList.remove('has-file');delete d.dataset.fileName;delete d.dataset.fileContent;d.innerHTML=`<div class="drop-icon">📄</div><div class="drop-label">Click to upload</div><input type="file" id="file_${key}" accept=".md,.txt,.text" onchange="handleF('${key}',this)">`;}
 
-async function saveAP(uid){const a=S.agents[uid];a.name=$('pf_name').value.trim()||a.name;a.role=$('pf_role').value.trim()||a.role;a.desc=$('pf_desc').value.trim();if(!a.files)a.files={};
+async function saveAP(uid){const a=S.agents[uid];a.name=$('pf_name').value.trim()||a.name;a.role=$('pf_role').value.trim()||a.role;a.desc=$('pf_desc').value.trim();if(a.custom){const sp=$('pf_system');if(sp&&sp.value.trim())a.system=sp.value.trim();}if(!a.files)a.files={};
   ['soul','agent','context','tools'].forEach(k=>{const d=$('drop_'+k);if(d&&d.dataset.fileName)a.files[k]={name:d.dataset.fileName,content:d.dataset.fileContent};else if(d&&!d.classList.contains('has-file'))delete a.files[k];});
   const keyVal=$('pf_apikey')?.value.trim();if(keyVal!==undefined)await saveAgentKey(uid,keyVal);
   const modelVal=$('pf_model')?.value;if(modelVal!==undefined)saveAgentModel(uid,modelVal);
@@ -901,7 +1183,7 @@ function renderMsgAttachment(att){
   return `<div class="msg-attachment"><a class="msg-attach-file" href="data:${att.type};base64,${att.base64}" download="${esc(att.name)}">📄 ${esc(att.name)} <span class="msg-attach-size">${sizeStr}</span></a></div>`;
 }
 
-function addMsg(key,uid,text,attachment){if(!S.messages[key])S.messages[key]=[];const t=new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});const msg={uid,text,time:t,ts:Date.now()};if(attachment)msg.attachment=attachment;S.messages[key].push(msg);save();}
+function addMsg(key,uid,text,attachment,extra){if(!S.messages[key])S.messages[key]=[];const t=new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});const msg={uid,text,time:t,ts:Date.now()};if(attachment)msg.attachment=attachment;if(extra)Object.assign(msg,extra);S.messages[key].push(msg);save();}
 
 function buildSP(agentId){const a=S.agents[agentId];let p=a.system;
   if(a.files){if(a.files.soul)p+=`\n\n--- SOUL.MD ---\n${a.files.soul.content}`;if(a.files.agent)p+=`\n\n--- AGENT.MD ---\n${a.files.agent.content}`;if(a.files.context)p+=`\n\n--- CONTEXT.MD ---\n${a.files.context.content}`;if(a.files.tools)p+=`\n\n--- TOOLS.MD ---\n${a.files.tools.content}`;}
@@ -975,8 +1257,81 @@ async function callDevAgent(vKey,agentId){
   save();renderMsgs();
   ti.classList.remove('show');streaming=false;$('sendBtn').disabled=false;}
 
+// === SENSITIVE DATA MONITOR ===
+const SDM_PATTERNS=[
+  {type:'Anthropic API Key',      re:/sk-ant-[a-zA-Z0-9\-_]{20,}/g},
+  {type:'OpenAI / Project Key',   re:/sk-proj-[a-zA-Z0-9\-_]{20,}|(?<!\w)sk-[a-zA-Z0-9]{48}(?!\w)/g},
+  {type:'AWS Access Key ID',      re:/(?<![A-Z0-9])AKIA[0-9A-Z]{16}(?![A-Z0-9])/g},
+  {type:'AWS Secret Access Key',  re:/(?:aws_secret_access_key|AWS_SECRET_ACCESS_KEY)\s*[=:]\s*[A-Za-z0-9\/+]{40}/g},
+  {type:'Private Key',            re:/-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----/g},
+  {type:'JWT Token',              re:/eyJ[a-zA-Z0-9\-_]{10,}\.eyJ[a-zA-Z0-9\-_]{10,}\.[a-zA-Z0-9\-_]+/g},
+  {type:'Credit Card Number',     re:/\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13}|6(?:011|5[0-9]{2})[0-9]{12})\b/g},
+  {type:'Social Security Number', re:/\b\d{3}-\d{2}-\d{4}\b/g},
+  {type:'Password in text',       re:/(?:^|[\s"';,{(])(?:password|passwd|pwd)\s*[:=]\s*["']?\S{4,}["']?/gim},
+  {type:'Connection String',      re:/(?:mongodb|mysql|postgres(?:ql)?|redis|amqp|mssql):\/\/[^\s"'<>\n]{8,}/gi},
+  {type:'Generic API Key/Secret', re:/(?:api[_-]?key|apikey|secret[_-]?key|access[_-]?token|auth[_-]?token)\s*[:=]\s*["']?[A-Za-z0-9\-_.+/]{20,}["']?/gi},
+  {type:'Google API Key',         re:/AIza[0-9A-Za-z\-_]{35}/g},
+  {type:'GitHub Token',           re:/ghp_[A-Za-z0-9]{36}|gho_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{82}/g},
+  {type:'Stripe Key',             re:/(?:sk|pk)_(?:live|test)_[A-Za-z0-9]{24,}/g},
+];
+const SDM_TEXT_EXTS=['.txt','.md','.js','.ts','.jsx','.tsx','.py','.rb','.go','.java','.php','.sh','.bash','.zsh','.env','.json','.yaml','.yml','.toml','.ini','.cfg','.conf','.csv','.sql','.xml','.html','.css'];
+
+function sdmScanText(text){
+  const findings=[];if(!text)return findings;
+  for(const {type,re} of SDM_PATTERNS){
+    re.lastIndex=0;
+    let m;while((m=re.exec(text))!==null){
+      const preview=m[0].length>70?m[0].slice(0,67)+'…':m[0];
+      findings.push({type,preview:preview.trim()});
+      if(findings.length>=20)return findings; // cap at 20 findings
+    }
+  }
+  return findings;
+}
+
+function sdmDecodeAttachment(att){
+  if(!att||!att.base64)return null;
+  const isTextType=att.type.startsWith('text/')||['application/json','application/xml','application/javascript','application/x-sh'].includes(att.type);
+  const isTextExt=SDM_TEXT_EXTS.some(e=>att.name.toLowerCase().endsWith(e));
+  if(!isTextType&&!isTextExt)return null;
+  try{return new TextDecoder().decode(Uint8Array.from(atob(att.base64),c=>c.charCodeAt(0)));}
+  catch(_){return null;}
+}
+
+let _sdmResolve=null;
+function sdmAction(action){
+  $('sdmModal').classList.remove('active');
+  if(_sdmResolve){_sdmResolve(action);_sdmResolve=null;}
+}
+
+async function sdmCheck(text,att){
+  const findings=[...sdmScanText(text)];
+  if(att){const content=sdmDecodeAttachment(att);if(content)findings.push(...sdmScanText(content));}
+  if(!findings.length)return'ok';
+  // Deduplicate by type+preview
+  const seen=new Set();const unique=findings.filter(f=>{const k=f.type+'|'+f.preview;if(seen.has(k))return false;seen.add(k);return true;});
+  const count=unique.length;
+  $('sdmSubtitle').textContent=`Found ${count} potential issue${count>1?'s':''} in your ${text&&att?'message and attachment':att?'attachment':'message'}. Review before sending to any AI agent.`;
+  $('sdmFindings').innerHTML=unique.map(f=>`<div class="sdm-finding"><div class="sdm-finding-type">${esc(f.type)}</div><div class="sdm-finding-preview">${esc(f.preview)}</div></div>`).join('');
+  $('sdmRemoveFileBtn').style.display=att?'':'none';
+  $('sdmModal').classList.add('active');
+  return new Promise(res=>{_sdmResolve=res;});
+}
+
+let deepModeActive=false;
+function toggleDeepMode(){
+  deepModeActive=!deepModeActive;
+  $('deepModeBtn').classList.toggle('active',deepModeActive);
+  $('msgInput').parentElement.classList.toggle('deep-active',deepModeActive);
+}
+
 async function sendMsg(){const input=$('msgInput'),text=input.value.trim();if((!text&&!pendingAttachment)||streaming)return;
-  const key=S.view.type+':'+S.view.id;const att=pendingAttachment;addMsg(key,S.currentUser.id,text,att);clearChatAttachment();input.value='';input.style.height='auto';renderMsgs();
+  const sdmResult=await sdmCheck(text,pendingAttachment);
+  if(sdmResult==='cancel'||sdmResult==='edit')return;
+  if(sdmResult==='remove-file')clearChatAttachment();
+  const key=S.view.type+':'+S.view.id;const att=pendingAttachment;
+  const extra=sdmResult==='send-anyway'?{acknowledged:true}:{};
+  addMsg(key,S.currentUser.id,text,att,extra);clearChatAttachment();input.value='';input.style.height='auto';renderMsgs();
   let respondents=[];if(S.view.type==='dm'){respondents=[S.view.id];}else{const chAgs=S.chAgents[S.view.id]||['sage'];const mentioned=Object.keys(S.agents).filter(id=>text.toLowerCase().includes('@'+id));respondents=mentioned.length?mentioned:[chAgs[0]];}
   for(const aid of respondents)await callAgent(key,aid);}
 
@@ -997,12 +1352,14 @@ async function callAgent(vKey,agentId){
     // Server offline — fall through to API with an inline notice
     const ti=$('typingInd');ti.textContent=`${a.initials} ${a.name} — bridge offline, using API fallback...`;ti.classList.add('show');
   }
-  // Check complexity for Cowork routing
+  // Check complexity for Cowork routing (or Deep Mode manual override)
   const lastUserMsg=(S.messages[vKey]||[]).filter(m=>!S.agents[m.uid]).pop();
   if(lastUserMsg&&folderHandle){
+    const forceCowork=deepModeActive;
+    if(forceCowork){deepModeActive=false;$('deepModeBtn').classList.remove('active');$('msgInput').parentElement.classList.remove('deep-active');}
     const complexity=scoreComplexity(lastUserMsg.text);
     const threshold=getThreshold();
-    if(complexity>=threshold){const delegated=await delegateToCowork(vKey,agentId);if(delegated)return;}
+    if(forceCowork||complexity>=threshold){const delegated=await delegateToCowork(vKey,agentId);if(delegated)return;}
   }
   const agentKey=await getAgentKey(agentId);
   if(!agentKey){addMsg(vKey,agentId,`⚠️ **No API key set** for ${a.name}. Set a **workspace default key** in Workspace Settings (⚙️ top-right), or open ${a.name}'s profile and add a key under **API Configuration**.`);renderMsgs();return;}
@@ -1129,7 +1486,7 @@ function openSearch(){
 function closeSearch(){$('searchOverlay').classList.remove('active');}
 function openShortcuts(){$('shortcutsOverlay').classList.add('active');}
 function closeShortcuts(){$('shortcutsOverlay').classList.remove('active');}
-function closeAllOverlays(){closeSearch();closeShortcuts();$('profileOverlay').classList.remove('active');$('newChModal').classList.remove('active');$('apiModal').classList.remove('active');}
+function closeAllOverlays(){closeSearch();closeShortcuts();closeCreateAgent();$('profileOverlay').classList.remove('active');$('newChModal').classList.remove('active');$('apiModal').classList.remove('active');}
 
 function onSearchInput(){
   const q=$('searchInput').value.trim();
@@ -1276,6 +1633,94 @@ document.addEventListener('keydown',e=>{
     const dest=all[n-1];if(dest)switchView(dest.type,dest.id);
   }
 });
+
+// ============ CUSTOM AGENTS ============
+const CA_COLORS=['#4A9EFF','#E8913A','#2E5F8A','#C45A20','#2E5A3E','#6B3FA0','#8B4513','#4A5568','#1A7A4A','#C4614E','#2D7D6E','#8B5E3C'];
+let caEditId=null;
+
+function caRenderSwatches(selectedColor){
+  const sel=(selectedColor||CA_COLORS[0]).toLowerCase();
+  const isPreset=CA_COLORS.some(c=>c.toLowerCase()===sel);
+  $('caSwatches').innerHTML=CA_COLORS.map(c=>`<div class="ca-swatch${c.toLowerCase()===sel?' selected':''}" data-color="${c}" style="background:${c}" title="${c}" onclick="caPickPreset('${c}')"></div>`).join('')+
+    `<div class="ca-color-custom" id="caCustomSwatch" style="background:${isPreset?'':selectedColor}" title="Custom colour">${isPreset?'🎨':''}<input type="color" id="caColorInput" value="${isPreset?CA_COLORS[0]:selectedColor}" oninput="caPickCustom(this.value)"></div>`;
+}
+
+function caPickPreset(color){
+  document.querySelectorAll('#caSwatches .ca-swatch').forEach(s=>s.classList.remove('selected'));
+  const sw=document.querySelector(`#caSwatches [data-color="${color}"]`);if(sw)sw.classList.add('selected');
+  const cs=$('caCustomSwatch');if(cs){cs.style.background='';cs.childNodes[0].textContent='🎨';}
+}
+
+function caPickCustom(color){
+  document.querySelectorAll('#caSwatches .ca-swatch').forEach(s=>s.classList.remove('selected'));
+  const cs=$('caCustomSwatch');if(cs){cs.style.background=color;const tn=cs.childNodes[0];if(tn&&tn.nodeType===3)tn.textContent='';}
+}
+
+function caGetColor(){
+  const sel=document.querySelector('#caSwatches .ca-swatch.selected');
+  if(sel)return sel.dataset.color;
+  const ci=$('caColorInput');return ci?ci.value:CA_COLORS[0];
+}
+
+function openCreateAgent(){
+  caEditId=null;
+  $('caTitle').textContent='Create Custom Agent';
+  $('caSaveBtn').textContent='Create Agent';
+  $('ca_name').value='';$('ca_emoji').value='🤖';$('ca_role').value='';$('ca_system').value='';$('ca_model').value='';$('ca_apikey').value='';
+  caRenderSwatches(CA_COLORS[0]);
+  $('createAgentModal').classList.add('active');
+  setTimeout(()=>$('ca_name').focus(),50);
+}
+
+function openEditAgent(id){
+  const a=S.agents[id];if(!a||!a.custom)return;
+  caEditId=id;
+  $('caTitle').textContent='Edit Agent';
+  $('caSaveBtn').textContent='Save Changes';
+  $('ca_name').value=a.name;$('ca_emoji').value=a.initials||'🤖';$('ca_role').value=a.role||'';$('ca_system').value=a.system||'';$('ca_model').value=getAgentModel(id);$('ca_apikey').value='';
+  caRenderSwatches(a.color||CA_COLORS[0]);
+  $('createAgentModal').classList.add('active');
+  setTimeout(()=>$('ca_name').focus(),50);
+}
+
+function closeCreateAgent(){const m=$('createAgentModal');if(m)m.classList.remove('active');}
+
+async function saveCustomAgent(){
+  const name=$('ca_name').value.trim();if(!name){$('ca_name').focus();return;}
+  const emoji=$('ca_emoji').value.trim()||'🤖';
+  const role=$('ca_role').value.trim()||'Custom Agent';
+  const system=$('ca_system').value.trim();
+  const color=caGetColor();
+  const model=$('ca_model').value;
+  const apikey=$('ca_apikey').value.trim();
+  if(caEditId){
+    const a=S.agents[caEditId];
+    a.name=name;a.initials=emoji;a.role=role;a.color=color;a.desc=role;
+    if(system)a.system=system;
+    saveAgentModel(caEditId,model);
+    if(apikey)await saveAgentKey(caEditId,apikey);
+    save();closeCreateAgent();renderDmList();renderMembers();
+    if($('profileOverlay').classList.contains('active'))openProfile(caEditId);
+  } else {
+    const id='custom_'+Date.now();
+    S.agents[id]={id,name,initials:emoji,color,role,type:'agent',custom:true,desc:role,
+      system:system||`You are ${name}, a custom AI assistant for Alchemy Saunas. ${role}`,files:{}};
+    saveAgentModel(id,model);
+    if(apikey)await saveAgentKey(id,apikey);
+    save();closeCreateAgent();renderDmList();
+    switchView('dm',id);
+  }
+}
+
+async function deleteCustomAgent(id){
+  const a=S.agents[id];if(!a||!a.custom)return;
+  if(!confirm(`Delete "${a.name}"? All conversation history with this agent will also be removed. This cannot be undone.`))return;
+  delete S.agents[id];delete S.messages['dm:'+id];
+  localStorage.removeItem('alchemy_agent_key_'+id);localStorage.removeItem('alchemy_agent_model_'+id);
+  save();
+  if(S.view.type==='dm'&&S.view.id===id)switchView('channel','general');
+  renderDmList();closeProfile();
+}
 
 load();
 </script>
