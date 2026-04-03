@@ -510,6 +510,10 @@ body { font-family:'Segoe UI',system-ui,-apple-system,sans-serif; background:var
     <label>Workspace Default API Key</label>
     <input type="password" id="wsDefaultKey" placeholder="sk-ant-api03-..." style="margin-bottom:6px">
     <div style="font-size:11px;color:var(--text-dim);margin-bottom:16px">All agents fall back to this key unless they have their own key set. Stored encrypted in your browser.</div>
+    <label>Bridge Server URL <span style="color:var(--text-dim);font-weight:400">(Claude Code / Dev agent)</span></label>
+    <input type="text" id="bridgeServerUrl" placeholder="http://localhost:3456" style="margin-bottom:4px">
+    <div style="font-size:11px;color:var(--text-dim);margin-bottom:16px">Default: <code style="background:var(--bg-darkest);border:1px solid var(--border);border-radius:3px;padding:1px 4px">http://localhost:3456</code>. Replace with a Cloudflare Tunnel URL (e.g. <code style="background:var(--bg-darkest);border:1px solid var(--border);border-radius:3px;padding:1px 4px">https://xxxx.trycloudflare.com</code>) to access remotely.</div>
+
     <label>Default Model</label>
     <select id="modelSelect">
       <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5 (Cheapest - recommended)</option>
@@ -700,7 +704,8 @@ body { font-family:'Segoe UI',system-ui,-apple-system,sans-serif; background:var
 
 <script>
 const $=id=>document.getElementById(id);
-const CLAUDE_CODE_SERVER='http://localhost:3456';
+function getClaudeCodeServer(){return localStorage.getItem('alchemy_bridge_server')||'http://localhost:3456';}
+const CLAUDE_CODE_SERVER='http://localhost:3456'; // legacy — use getClaudeCodeServer() below
 
 const DEF_HUMANS = [
   {id:'james',name:'James',initials:'JR',color:'#8B5E3C',role:'Owner / Director',type:'human'},
@@ -1049,8 +1054,8 @@ function enterWorkspace(user){
   renderWS();
 }
 function toggleAbout(){const s=$('aboutSection'),c=$('aboutChevron');const open=s.style.display==='none';s.style.display=open?'block':'none';c.style.transform=open?'rotate(90deg)':'rotate(0deg)';}
-function openApi(){$('modelSelect').value=getModel();$('complexitySlider').value=getThreshold();$('sliderVal').textContent=getThreshold();updateFolderStatus(!!folderHandle);const wkInput=$('wsDefaultKey');wkInput.value='';wkInput.placeholder=hasWorkspaceKey()?'Workspace key saved — paste new key to update':'sk-ant-api03-...';$('apiModal').classList.add('active');}
-async function saveApiKey(){localStorage.setItem('rit_model',$('modelSelect').value);localStorage.setItem('alchemy_complexity_threshold',$('complexitySlider').value);const wsKey=$('wsDefaultKey').value.trim();if(wsKey)await saveWorkspaceKey(wsKey);$('apiModal').classList.remove('active');}
+function openApi(){$('modelSelect').value=getModel();$('complexitySlider').value=getThreshold();$('sliderVal').textContent=getThreshold();updateFolderStatus(!!folderHandle);const wkInput=$('wsDefaultKey');wkInput.value='';wkInput.placeholder=hasWorkspaceKey()?'Workspace key saved — paste new key to update':'sk-ant-api03-...';$('bridgeServerUrl').value=localStorage.getItem('alchemy_bridge_server')||'';$('apiModal').classList.add('active');}
+async function saveApiKey(){localStorage.setItem('rit_model',$('modelSelect').value);localStorage.setItem('alchemy_complexity_threshold',$('complexitySlider').value);const wsKey=$('wsDefaultKey').value.trim();if(wsKey)await saveWorkspaceKey(wsKey);const bridgeUrl=$('bridgeServerUrl').value.trim();if(bridgeUrl)localStorage.setItem('alchemy_bridge_server',bridgeUrl.replace(/\/+$/,''));else localStorage.removeItem('alchemy_bridge_server');$('apiModal').classList.remove('active');}
 
 function renderWS(){renderChList();renderDmList();switchView(S.view.type,S.view.id);}
 function renderChList(){$('chList').innerHTML=S.channels.map(c=>`<li class="${S.view.type==='channel'&&S.view.id===c.id?'active':''}" onclick="switchView('channel','${c.id}')"><span class="hash">#</span>${c.name}</li>`).join('');}
@@ -1191,7 +1196,7 @@ function buildSP(agentId){const a=S.agents[agentId];let p=a.system;
 
 // ============ CLAUDE CODE INTEGRATION ============
 async function isClaudeCodeAvailable(){
-  try{const r=await fetch(`${CLAUDE_CODE_SERVER}/status`,{signal:AbortSignal.timeout(1500)});return r.ok;}
+  try{const r=await fetch(`${getClaudeCodeServer()}/status`,{signal:AbortSignal.timeout(1500)});return r.ok;}
   catch(_){return false;}}
 
 function ccToolLabel(name,input){
@@ -1221,7 +1226,7 @@ async function callDevAgent(vKey,agentId){
   S.messages[vKey].push(mo);renderMsgs();
   let finalResult='';
   try{
-    const resp=await fetch(`${CLAUDE_CODE_SERVER}/run`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:lastUserMsg.text})});
+    const resp=await fetch(`${getClaudeCodeServer()}/run`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:lastUserMsg.text})});
     if(!resp.ok)throw new Error(`Bridge server error: ${resp.status}`);
     const reader=resp.body.getReader(),dec=new TextDecoder();let buf='';
     outer:while(true){
