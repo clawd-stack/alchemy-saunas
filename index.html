@@ -451,7 +451,7 @@ body { font-family:'Segoe UI',system-ui,-apple-system,sans-serif; background:var
 
 <div class="workspace hidden" id="workspace">
   <div class="ch-side">
-    <div class="ch-head"><h2>Alchemy Saunas</h2></div>
+    <div class="ch-head"><h2>Alchemy Saunas</h2><span id="devBadge" style="display:none;font-size:9px;padding:2px 6px;border-radius:3px;background:rgba(232,145,58,.2);color:#E8913A;font-weight:700;letter-spacing:.5px;flex-shrink:0">DEV</span></div>
     <div class="ch-scroll">
       <div class="sec-title">Channels <button onclick="openNewCh()">+</button></div>
       <ul class="ch-list" id="chList"></ul>
@@ -701,6 +701,16 @@ body { font-family:'Segoe UI',system-ui,-apple-system,sans-serif; background:var
 <script>
 const $=id=>document.getElementById(id);
 const CLAUDE_CODE_SERVER='http://localhost:3456';
+
+// Environment detection — no manual [DEV] stripping needed.
+// Prod: github.io or custom domain. Dev: localhost, file://, or *-dev* host.
+const IS_DEV = (() => {
+  const h = location.hostname;
+  const href = location.href;
+  return h === 'localhost' || h === '127.0.0.1' || h === '' ||
+         href.startsWith('file://') || h.includes('-dev') ||
+         new URLSearchParams(location.search).has('dev');
+})();
 
 const DEF_HUMANS = [
   {id:'james',name:'James',initials:'JR',color:'#8B5E3C',role:'Owner / Director',type:'human'},
@@ -1720,6 +1730,13 @@ async function deleteCustomAgent(id){
   save();
   if(S.view.type==='dm'&&S.view.id===id)switchView('channel','general');
   renderDmList();closeProfile();
+}
+
+// Apply IS_DEV indicators — auto-detected, no manual stripping needed
+if (IS_DEV) {
+  const badge = $('devBadge');
+  if (badge) badge.style.display = 'inline';
+  document.title = '[DEV] ' + document.title;
 }
 
 load();
