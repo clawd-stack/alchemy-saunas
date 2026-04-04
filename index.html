@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Alchemy Saunas — AI Workspace</title>
+<title>Alchemy Saunas [DEV] — AI Workspace</title>
 <style>
 :root {
   --bg-darkest: #0c0c0c;
@@ -349,7 +349,7 @@ body { font-family:'Segoe UI',system-ui,-apple-system,sans-serif; background:var
   <div class="login-box">
     <h1>ALCHEMY</h1>
     <div class="subtitle">Saunas & Ice Baths</div>
-    <p>AI Workspace</p>
+    <p>AI Workspace <strong style="color:#e74c3c">[DEV]</strong></p>
     <div class="login-form" id="loginForm">
       <div>
         <label for="loginName">Your name</label>
@@ -373,7 +373,7 @@ body { font-family:'Segoe UI',system-ui,-apple-system,sans-serif; background:var
       <div style="text-align:center;padding:8px 0">
         <div style="font-size:52px;margin-bottom:16px">🔥</div>
         <h1 style="color:var(--accent);font-size:22px;letter-spacing:3px;font-weight:300;margin-bottom:6px">WELCOME TO</h1>
-        <h2 style="color:var(--text);font-size:24px;font-weight:700;margin-bottom:18px">Alchemy Saunas</h2>
+        <h2 style="color:var(--text);font-size:24px;font-weight:700;margin-bottom:18px">Alchemy HQ</h2>
         <p style="color:var(--text-muted);font-size:14px;line-height:1.8;max-width:380px;margin:0 auto">Your AI-powered team workspace for <strong style="color:var(--warm)">Alchemy Saunas</strong>. Seven specialist agents are here to help you run the business — from marketing and ops to finance and people.</p>
         <p style="color:var(--text-dim);font-size:12px;margin-top:14px">This quick guide takes about 60 seconds.</p>
       </div>
@@ -451,7 +451,7 @@ body { font-family:'Segoe UI',system-ui,-apple-system,sans-serif; background:var
 
 <div class="workspace hidden" id="workspace">
   <div class="ch-side">
-    <div class="ch-head"><h2>Alchemy Saunas</h2></div>
+    <div class="ch-head"><h2>Alchemy HQ <span style="color:#e74c3c;font-size:0.65em;font-weight:700;vertical-align:middle">[DEV]</span></h2></div>
     <div class="ch-scroll">
       <div class="sec-title">Channels <button onclick="openNewCh()">+</button></div>
       <ul class="ch-list" id="chList"></ul>
@@ -510,10 +510,6 @@ body { font-family:'Segoe UI',system-ui,-apple-system,sans-serif; background:var
     <label>Workspace Default API Key</label>
     <input type="password" id="wsDefaultKey" placeholder="sk-ant-api03-..." style="margin-bottom:6px">
     <div style="font-size:11px;color:var(--text-dim);margin-bottom:16px">All agents fall back to this key unless they have their own key set. Stored encrypted in your browser.</div>
-    <label>Bridge Server URL <span style="color:var(--text-dim);font-weight:400">(Claude Code / Dev agent)</span></label>
-    <input type="text" id="bridgeServerUrl" placeholder="http://localhost:3456" style="margin-bottom:4px">
-    <div style="font-size:11px;color:var(--text-dim);margin-bottom:16px">Default: <code style="background:var(--bg-darkest);border:1px solid var(--border);border-radius:3px;padding:1px 4px">http://localhost:3456</code>. Replace with a Cloudflare Tunnel URL (e.g. <code style="background:var(--bg-darkest);border:1px solid var(--border);border-radius:3px;padding:1px 4px">https://xxxx.trycloudflare.com</code>) to access remotely.</div>
-
     <label>Default Model</label>
     <select id="modelSelect">
       <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5 (Cheapest - recommended)</option>
@@ -704,8 +700,7 @@ body { font-family:'Segoe UI',system-ui,-apple-system,sans-serif; background:var
 
 <script>
 const $=id=>document.getElementById(id);
-function getClaudeCodeServer(){return localStorage.getItem('alchemy_bridge_server')||'http://localhost:3456';}
-const CLAUDE_CODE_SERVER='http://localhost:3456'; // legacy — use getClaudeCodeServer() below
+const CLAUDE_CODE_SERVER='http://localhost:3456';
 
 const DEF_HUMANS = [
   {id:'james',name:'James',initials:'JR',color:'#8B5E3C',role:'Owner / Director',type:'human'},
@@ -849,10 +844,6 @@ function agentModelOpts(agentId){const cur=getAgentModel(agentId);return[['','�
 function getModel(){return localStorage.getItem('rit_model')||'claude-haiku-4-5-20251001';}
 function getThreshold(){return parseInt(localStorage.getItem('alchemy_complexity_threshold')||'5');}
 function getUser(id){return S.agents[id]||S.humans.find(h=>h.id===id)||S.currentUser;}
-// DM keys are scoped per-user: "dm:agentId:userId". Channel keys are shared: "channel:channelId".
-function viewKey(type,id){return type==='dm'&&S.currentUser?'dm:'+id+':'+S.currentUser.id:type+':'+id;}
-function curViewKey(){return viewKey(S.view.type,S.view.id);}
-function parseVKey(k){const p=k.split(':');return p[0]==='dm'&&p.length===3?{type:'dm',id:p[1]}:{type:p[0],id:p.slice(1).join(':')};}
 
 // ============ COWORK ROUTING ============
 let folderHandle=null;
@@ -1051,9 +1042,6 @@ function toggleSidebar(){
 
 function enterWorkspace(user){
   S.currentUser=user;
-  // Migrate legacy DM keys (dm:agentId) → user-scoped keys (dm:agentId:userId)
-  const legacyDMs=Object.keys(S.messages).filter(k=>k.startsWith('dm:')&&k.split(':').length===2);
-  if(legacyDMs.length){legacyDMs.forEach(k=>{const nk=k+':'+user.id;if(!S.messages[nk])S.messages[nk]=S.messages[k];delete S.messages[k];});save();}
   $('loginScreen').classList.add('hidden');
   $('workspace').classList.remove('hidden');
   $('loginName').value='';$('loginPin').value='';$('loginError').textContent='';$('loginError').style.color='';
@@ -1061,8 +1049,8 @@ function enterWorkspace(user){
   renderWS();
 }
 function toggleAbout(){const s=$('aboutSection'),c=$('aboutChevron');const open=s.style.display==='none';s.style.display=open?'block':'none';c.style.transform=open?'rotate(90deg)':'rotate(0deg)';}
-function openApi(){$('modelSelect').value=getModel();$('complexitySlider').value=getThreshold();$('sliderVal').textContent=getThreshold();updateFolderStatus(!!folderHandle);const wkInput=$('wsDefaultKey');wkInput.value='';wkInput.placeholder=hasWorkspaceKey()?'Workspace key saved — paste new key to update':'sk-ant-api03-...';$('bridgeServerUrl').value=localStorage.getItem('alchemy_bridge_server')||'';$('apiModal').classList.add('active');}
-async function saveApiKey(){localStorage.setItem('rit_model',$('modelSelect').value);localStorage.setItem('alchemy_complexity_threshold',$('complexitySlider').value);const wsKey=$('wsDefaultKey').value.trim();if(wsKey)await saveWorkspaceKey(wsKey);const bridgeUrl=$('bridgeServerUrl').value.trim();if(bridgeUrl)localStorage.setItem('alchemy_bridge_server',bridgeUrl.replace(/\/+$/,''));else localStorage.removeItem('alchemy_bridge_server');$('apiModal').classList.remove('active');}
+function openApi(){$('modelSelect').value=getModel();$('complexitySlider').value=getThreshold();$('sliderVal').textContent=getThreshold();updateFolderStatus(!!folderHandle);const wkInput=$('wsDefaultKey');wkInput.value='';wkInput.placeholder=hasWorkspaceKey()?'Workspace key saved — paste new key to update':'sk-ant-api03-...';$('apiModal').classList.add('active');}
+async function saveApiKey(){localStorage.setItem('rit_model',$('modelSelect').value);localStorage.setItem('alchemy_complexity_threshold',$('complexitySlider').value);const wsKey=$('wsDefaultKey').value.trim();if(wsKey)await saveWorkspaceKey(wsKey);$('apiModal').classList.remove('active');}
 
 function renderWS(){renderChList();renderDmList();switchView(S.view.type,S.view.id);}
 function renderChList(){$('chList').innerHTML=S.channels.map(c=>`<li class="${S.view.type==='channel'&&S.view.id===c.id?'active':''}" onclick="switchView('channel','${c.id}')"><span class="hash">#</span>${c.name}</li>`).join('');}
@@ -1076,7 +1064,7 @@ function switchView(type,id){
 }
 
 function renderMsgs(){
-  const c=$('chatMsgs'),key=curViewKey(),msgs=S.messages[key]||[];
+  const c=$('chatMsgs'),key=S.view.type+':'+S.view.id,msgs=S.messages[key]||[];
   if(!msgs.length){const isCh=S.view.type==='channel';const ch=isCh?S.channels.find(x=>x.id===S.view.id):null;const ag=!isCh?S.agents[S.view.id]:null;
     c.innerHTML=`<div class="welcome-msg"><div style="font-size:36px;margin-bottom:12px">${isCh?'🔥':ag?.initials}</div><h2>${isCh?'#'+ch?.name:ag?.name}</h2><p>${isCh?(ch?.topic||'Start the conversation'):`DM with <strong>${ag?.name}</strong> — ${ag?.role}`}</p></div>`;return;}
   c.innerHTML=msgs.map(m=>{const u=getUser(m.uid);const isBot=!!S.agents[m.uid];const isDelegated=m.delegated;const isCoworkRouted=m.coworkRouted;
@@ -1107,9 +1095,7 @@ function openProfile(uid){
           ${u.custom?`<div class="profile-field"><label>System Prompt</label><textarea id="pf_system" style="min-height:120px;resize:vertical">${esc(u.system||'')}</textarea><div style="font-size:11px;color:var(--text-dim);margin-top:4px">Core personality and instructions for this agent.</div></div>`:''}
           </div>
         <div class="profile-section"><h4>API Configuration</h4>
-          ${uid==='dev'
-            ?(!hasWorkspaceKey()?`<div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:rgba(231,76,60,.1);border:1px solid rgba(231,76,60,.3);border-radius:8px;margin-bottom:12px;font-size:12px;color:#e74c3c">⚠️ No API key configured — needed when the bridge server (localhost:3456) is offline. <strong style="cursor:pointer;text-decoration:underline" onclick="closeProfile();openApi()">Set workspace default key</strong> or start the bridge server.</div>`:'')
-            :(!hasAgentKey(uid)&&!hasWorkspaceKey()?`<div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:rgba(231,76,60,.1);border:1px solid rgba(231,76,60,.3);border-radius:8px;margin-bottom:12px;font-size:12px;color:#e74c3c">⚠️ No API key configured — set a <strong style="cursor:pointer;text-decoration:underline" onclick="closeProfile();openApi()">workspace default key</strong> or paste one below before this agent can respond.</div>`:'')}
+          ${!hasAgentKey(uid)&&!hasWorkspaceKey()?`<div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:rgba(231,76,60,.1);border:1px solid rgba(231,76,60,.3);border-radius:8px;margin-bottom:12px;font-size:12px;color:#e74c3c">⚠️ No API key configured — set a <strong style="cursor:pointer;text-decoration:underline" onclick="closeProfile();openApi()">workspace default key</strong> or paste one below before this agent can respond.</div>`:''}
           <div class="profile-field"><label>Anthropic API Key</label><input type="password" id="pf_apikey" placeholder="${hasAgentKey(uid)?'Agent key saved — paste new key to update':hasWorkspaceKey()?'Using workspace default key — paste a different key here to override':'sk-ant-api03-...'}" value=""><div style="font-size:11px;color:var(--text-dim);margin-top:4px">${hasAgentKey(uid)?`This agent uses its own key.`:hasWorkspaceKey()?`Using the workspace default key. Paste a key here to override for ${esc(u.name)} only.`:`No key set. You can set a workspace default key in Workspace Settings, or paste one here for ${esc(u.name)} only.`} Stored encrypted in your browser.</div></div>
           <div class="profile-field"><label>Model <span style="color:var(--text-dim)">(optional override)</span></label><select id="pf_model">${agentModelOpts(uid)}</select></div></div>
         <div class="profile-section"><h4>Personality & Instructions</h4>
@@ -1205,7 +1191,7 @@ function buildSP(agentId){const a=S.agents[agentId];let p=a.system;
 
 // ============ CLAUDE CODE INTEGRATION ============
 async function isClaudeCodeAvailable(){
-  try{const r=await fetch(`${getClaudeCodeServer()}/status`,{signal:AbortSignal.timeout(1500)});return r.ok;}
+  try{const r=await fetch(`${CLAUDE_CODE_SERVER}/status`,{signal:AbortSignal.timeout(1500)});return r.ok;}
   catch(_){return false;}}
 
 function ccToolLabel(name,input){
@@ -1235,22 +1221,16 @@ async function callDevAgent(vKey,agentId){
   S.messages[vKey].push(mo);renderMsgs();
   let finalResult='';
   try{
-    const resp=await fetch(`${getClaudeCodeServer()}/run`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:lastUserMsg.text})});
+    const resp=await fetch(`${CLAUDE_CODE_SERVER}/run`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:lastUserMsg.text})});
     if(!resp.ok)throw new Error(`Bridge server error: ${resp.status}`);
     const reader=resp.body.getReader(),dec=new TextDecoder();let buf='';
     outer:while(true){
       const{done,value}=await reader.read();if(done)break;
       buf+=dec.decode(value,{stream:true});
-      // Split on newlines so each SSE "data:" line is processed independently.
-      // This is more robust than splitting on \n\n when multiple events arrive
-      // in one TCP chunk (e.g. "data:{a}\ndata:{b}\n\n").
-      const lines=buf.split('\n');buf=lines.pop()??'';
-      for(const line of lines){
-        const trimmed=line.trim();
-        if(!trimmed||trimmed.startsWith(':'))continue;
-        // Strip SSE "data: " prefix if present; some lines may be raw JSON
-        const raw=trimmed.startsWith('data: ')?trimmed.slice(6).trim():trimmed;
-        if(!raw)continue;
+      const chunks=buf.split('\n\n');buf=chunks.pop()??'';
+      for(const chunk of chunks){
+        if(!chunk.startsWith('data: '))continue;
+        const raw=chunk.slice(6).trim();if(!raw||raw.startsWith(':'))continue;
         try{
           const ev=JSON.parse(raw);
           if(ev.type==='assistant'&&ev.message?.content){
@@ -1259,14 +1239,10 @@ async function callDevAgent(vKey,agentId){
               else if(blk.type==='tool_use'){ti.textContent=`${a.initials} ${a.name} — ${ccToolLabel(blk.name,blk.input)}`;}
             }
           }else if(ev.type==='result'){
-            // Always capture the result text as fallback; also update status
             if(ev.result)finalResult=ev.result;
             ti.textContent=`${a.initials} ${a.name} — Finishing...`;
           }else if(ev.type==='error'){
             mo.text+=`\n\n⚠️ *Claude Code error: ${ev.message}*`;renderMsgs();
-          }else if(ev.type==='stderr'&&ev.message){
-            // Progress info from Claude Code stderr — update typing indicator only
-            ti.textContent=`${a.initials} ${a.name} — ${ev.message.slice(0,80)}`;
           }else if(ev.type==='done'){break outer;}
         }catch(_){}
       }
@@ -1353,7 +1329,7 @@ async function sendMsg(){const input=$('msgInput'),text=input.value.trim();if((!
   const sdmResult=await sdmCheck(text,pendingAttachment);
   if(sdmResult==='cancel'||sdmResult==='edit')return;
   if(sdmResult==='remove-file')clearChatAttachment();
-  const key=curViewKey();const att=pendingAttachment;
+  const key=S.view.type+':'+S.view.id;const att=pendingAttachment;
   const extra=sdmResult==='send-anyway'?{acknowledged:true}:{};
   addMsg(key,S.currentUser.id,text,att,extra);clearChatAttachment();input.value='';input.style.height='auto';renderMsgs();
   let respondents=[];if(S.view.type==='dm'){respondents=[S.view.id];}else{const chAgs=S.chAgents[S.view.id]||['sage'];const mentioned=Object.keys(S.agents).filter(id=>text.toLowerCase().includes('@'+id));respondents=mentioned.length?mentioned:[chAgs[0]];}
@@ -1386,12 +1362,7 @@ async function callAgent(vKey,agentId){
     if(forceCowork||complexity>=threshold){const delegated=await delegateToCowork(vKey,agentId);if(delegated)return;}
   }
   const agentKey=await getAgentKey(agentId);
-  if(!agentKey){
-    $('typingInd').classList.remove('show');
-    addMsg(vKey,agentId,agentId==='dev'
-      ?`⚠️ **Dev agent unavailable**: The Claude Code bridge server (localhost:3456) is offline, and no API key is configured for fallback. Start the bridge server with \`node server.js\`, or set a **workspace default key** in ⚙️ Workspace Settings.`
-      :`⚠️ **No API key set** for ${a.name}. Set a **workspace default key** in Workspace Settings (⚙️ top-right), or open ${a.name}'s profile and add a key under **API Configuration**.`);
-    renderMsgs();return;}
+  if(!agentKey){addMsg(vKey,agentId,`⚠️ **No API key set** for ${a.name}. Set a **workspace default key** in Workspace Settings (⚙️ top-right), or open ${a.name}'s profile and add a key under **API Configuration**.`);renderMsgs();return;}
   streaming=true;$('sendBtn').disabled=true;
   const ti=$('typingInd');ti.textContent=`${a.initials} ${a.name} is typing...`;ti.classList.add('show');
   const hist=(S.messages[vKey]||[]).slice(-20).map(m=>{
@@ -1556,8 +1527,7 @@ function performSearch(query){
   if(!tokens.length)return[];
   const results=[];
   for(const[vKey,msgs]of Object.entries(S.messages)){
-    if(vKey.startsWith('dm:')&&!vKey.endsWith(':'+(S.currentUser?.id||'')))continue;
-    const{type,id}=parseVKey(vKey);
+    const ci=vKey.indexOf(':');const type=vKey.slice(0,ci);const id=vKey.slice(ci+1);
     for(let i=0;i<msgs.length;i++){
       const m=msgs[i];
       if(!m.text||m.delegated)continue;
@@ -1618,7 +1588,7 @@ function renderSearchResults(results,query){
 
 function navigateToResult(vKey,msgIdx){
   closeSearch();
-  const{type,id}=parseVKey(vKey);
+  const ci=vKey.indexOf(':');const type=vKey.slice(0,ci);const id=vKey.slice(ci+1);
   switchView(type,id);
   setTimeout(()=>{
     const els=$('chatMsgs').querySelectorAll('.msg');
@@ -1642,7 +1612,7 @@ document.addEventListener('keydown',e=>{
   // Up arrow in empty message input: restore last sent message
   const mi=$('msgInput');
   if(e.key==='ArrowUp'&&mi&&e.target===mi&&!mi.value.trim()){
-    const key=curViewKey();
+    const key=S.view.type+':'+S.view.id;
     const msgs=S.messages[key]||[];
     const last=[...msgs].reverse().find(m=>m.uid===S.currentUser?.id);
     if(last){e.preventDefault();mi.value=last.text;mi.style.height='auto';mi.style.height=Math.min(mi.scrollHeight,180)+'px';setTimeout(()=>{mi.selectionStart=mi.selectionEnd=last.text.length;},0);}
@@ -1745,7 +1715,7 @@ async function saveCustomAgent(){
 async function deleteCustomAgent(id){
   const a=S.agents[id];if(!a||!a.custom)return;
   if(!confirm(`Delete "${a.name}"? All conversation history with this agent will also be removed. This cannot be undone.`))return;
-  delete S.agents[id];Object.keys(S.messages).filter(k=>k==='dm:'+id||k.startsWith('dm:'+id+':')).forEach(k=>delete S.messages[k]);
+  delete S.agents[id];delete S.messages['dm:'+id];
   localStorage.removeItem('alchemy_agent_key_'+id);localStorage.removeItem('alchemy_agent_model_'+id);
   save();
   if(S.view.type==='dm'&&S.view.id===id)switchView('channel','general');
