@@ -6,6 +6,10 @@ name: member-booking
 # against the in-memory store.
 
 on:
+  # Manual trigger included so the suite can be run on demand, and so this
+  # workflow can be verified the moment Actions is enabled for the repository
+  # without needing a fresh commit to trigger it.
+  workflow_dispatch:
   push:
     branches: [main]
     paths:
