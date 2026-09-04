@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Door list, Alchemy East Fremantle</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <main class="wrap wrap--wide">
+    <p class="eyebrow">Alchemy East Fremantle</p>
+    <h1>Door list</h1>
+    <div id="messages"></div>
+
+    <section class="card" id="signin-card">
+      <h2 style="margin-top:0">Staff sign in</h2>
+      <p class="muted" style="margin-top:0">This list shows member and guest contact details, so it is not shared by link. Sign in with your staff email.</p>
+      <form id="signin-form" class="stack">
+        <div>
+          <label for="email">Staff email</label>
+          <input id="email" type="email" autocomplete="email" required>
+        </div>
+        <button class="btn-primary" type="submit" id="signin-button">Send sign-in link</button>
+      </form>
+    </section>
+
+    <section id="door-section" class="hidden">
+      <div class="card">
+        <div class="row row--between">
+          <div>
+            <label for="date" style="margin-bottom:4px">Date</label>
+            <input id="date" type="date">
+          </div>
+          <div class="row">
+            <a class="btn-quiet btn-small" id="csv" href="#" style="text-decoration:none; display:inline-block">Download reconciliation CSV</a>
+            <button class="btn-quiet btn-small" id="refresh" type="button">Refresh</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <label for="session">Session</label>
+        <select id="session"></select>
+      </div>
+
+      <div id="stale"></div>
+      <div id="totals" class="card hidden"></div>
+      <div id="list"></div>
+    </section>
+  </main>
+  <script type="module" src="/doorlist.js"></script>
+</body>
+</html>

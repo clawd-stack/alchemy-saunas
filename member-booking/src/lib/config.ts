@@ -1,0 +1,198 @@
+import { BookingError } from './errors.ts';
+import type { ConfigEntry, Store } from '../store/types.ts';
+
+/**
+ * The configuration store, PRD 5.7.
+ *
+ * Two jobs. First, give the rest of the codebase one typed view of the tunable
+ * values, so no rule is expressed in more than one place. Second, refuse any
+ * change that would breach the venue ceiling. The bound on
+ * member_channel_capacity is a validation rule, not a note: the admin screen
+ * must make it impossible to set an allocation that oversells the room.
+ */
+
+export interface AppConfig {
+  venueMaximum: number;
+  hapanaPublicCapacity: number;
+  memberChannelCapacity: number;
+  bookingWindowDays: number;
+  cancellationCutoffHours: number;
+  maxGuestsPerMember: number;
+  guestPrice: number;
+  sessionLengthMinutes: number;
+  waiverVersion: string;
+  operatingHours: Record<string, [string, string]>;
+  bookingBackend: 'local' | 'hapana';
+}
+
+export const CONFIG_DEFAULTS: AppConfig = {
+  venueMaximum: 40,
+  hapanaPublicCapacity: 20,
+  memberChannelCapacity: 10,
+  bookingWindowDays: 14,
+  cancellationCutoffHours: 3,
+  maxGuestsPerMember: 3,
+  guestPrice: 35,
+  sessionLengthMinutes: 60,
+  waiverVersion: 'PLACEHOLDER-0',
+  operatingHours: {
+    mon: ['06:00', '20:00'],
+    tue: ['06:00', '20:00'],
+    wed: ['06:00', '20:00'],
+    thu: ['06:00', '20:00'],
+    fri: ['06:00', '20:00'],
+    sat: ['07:00', '18:00'],
+    sun: ['07:00', '18:00'],
+  },
+  bookingBackend: 'local',
+};
+
+const KEY_MAP: Record<string, keyof AppConfig> = {
+  venue_maximum: 'venueMaximum',
+  hapana_public_capacity: 'hapanaPublicCapacity',
+  member_channel_capacity: 'memberChannelCapacity',
+  booking_window_days: 'bookingWindowDays',
+  cancellation_cutoff_hours: 'cancellationCutoffHours',
+  max_guests_per_member: 'maxGuestsPerMember',
+  guest_price: 'guestPrice',
+  session_length_minutes: 'sessionLengthMinutes',
+  waiver_version: 'waiverVersion',
+  operating_hours: 'operatingHours',
+  booking_backend: 'bookingBackend',
+};
+
+export const CONFIG_KEYS = Object.keys(KEY_MAP);
+
+export function configKeyFor(field: keyof AppConfig): string {
+  const entry = Object.entries(KEY_MAP).find(([, value]) => value === field);
+  if (!entry) throw new Error(`No config key for field ${String(field)}`);
+  return entry[0];
+}
+
+/** Merges stored rows over the defaults. Unknown keys are ignored, not fatal. */
+export function materialise(entries: ConfigEntry[]): AppConfig {
+  const config: AppConfig = { ...CONFIG_DEFAULTS };
+  for (const entry of entries) {
+    const field = KEY_MAP[entry.key];
+    if (!field) continue;
+    (config as unknown as Record<string, unknown>)[field] = entry.value;
+  }
+  return config;
+}
+
+export interface ValidationIssue {
+  key: string;
+  message: string;
+}
+
+/**
+ * Whole-config validation. Called on every write with the proposed value
+ * already applied, so a change is judged against the config it would create
+ * rather than the one it replaces.
+ */
+export function validate(config: AppConfig): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  const positiveInt = (value: unknown) => Number.isInteger(value) && (value as number) > 0;
+
+  if (!positiveInt(config.venueMaximum)) {
+    issues.push({ key: 'venue_maximum', message: 'Venue maximum must be a whole number above zero.' });
+  }
+  if (!Number.isInteger(config.hapanaPublicCapacity) || config.hapanaPublicCapacity < 0) {
+    issues.push({ key: 'hapana_public_capacity', message: 'Public capacity must be zero or a whole number.' });
+  }
+  if (!Number.isInteger(config.memberChannelCapacity) || config.memberChannelCapacity < 0) {
+    issues.push({ key: 'member_channel_capacity', message: 'Member channel capacity must be zero or a whole number.' });
+  }
+
+  // The bound that matters. Public plus member allocation may never exceed the
+  // ceiling, whichever of the three values is being edited.
+  if (
+    Number.isInteger(config.memberChannelCapacity) &&
+    Number.isInteger(config.hapanaPublicCapacity) &&
+    Number.isInteger(config.venueMaximum) &&
+    config.memberChannelCapacity + config.hapanaPublicCapacity > config.venueMaximum
+  ) {
+    issues.push({
+      key: 'member_channel_capacity',
+      message:
+        `Public capacity (${config.hapanaPublicCapacity}) plus member channel capacity ` +
+        `(${config.memberChannelCapacity}) is ${config.hapanaPublicCapacity + config.memberChannelCapacity}, ` +
+        `which is above the venue maximum of ${config.venueMaximum}. Reduce one of them.`,
+    });
+  }
+
+  if (!positiveInt(config.bookingWindowDays) || config.bookingWindowDays > 365) {
+    issues.push({ key: 'booking_window_days', message: 'Booking window must be between 1 and 365 days.' });
+  }
+  if (!Number.isInteger(config.cancellationCutoffHours) || config.cancellationCutoffHours < 0 || config.cancellationCutoffHours > 168) {
+    issues.push({ key: 'cancellation_cutoff_hours', message: 'Cancellation cutoff must be between 0 and 168 hours.' });
+  }
+  if (!Number.isInteger(config.maxGuestsPerMember) || config.maxGuestsPerMember < 0 || config.maxGuestsPerMember > 10) {
+    issues.push({ key: 'max_guests_per_member', message: 'Guests per member must be between 0 and 10.' });
+  }
+  if (typeof config.guestPrice !== 'number' || config.guestPrice < 0) {
+    issues.push({ key: 'guest_price', message: 'Guest price must be zero or more.' });
+  }
+  if (!positiveInt(config.sessionLengthMinutes) || config.sessionLengthMinutes > 480) {
+    issues.push({ key: 'session_length_minutes', message: 'Session length must be between 1 and 480 minutes.' });
+  }
+  if (config.bookingBackend !== 'local' && config.bookingBackend !== 'hapana') {
+    issues.push({ key: 'booking_backend', message: "Booking backend must be 'local' or 'hapana'." });
+  }
+  for (const [day, hours] of Object.entries(config.operatingHours ?? {})) {
+    if (!Array.isArray(hours) || hours.length !== 2 || !/^\d{2}:\d{2}$/.test(hours[0] ?? '') || !/^\d{2}:\d{2}$/.test(hours[1] ?? '')) {
+      issues.push({ key: 'operating_hours', message: `Operating hours for ${day} must be ["HH:MM", "HH:MM"].` });
+    }
+  }
+  return issues;
+}
+
+/**
+ * Raising the ceiling requires a documented source. The build hardcodes a
+ * number that staff rely on, so it must trace to the certificate of approval
+ * rather than to a conversation.
+ */
+export function requiresSourceNote(key: string, currentValue: unknown, nextValue: unknown): boolean {
+  if (key !== 'venue_maximum') return false;
+  return Number(nextValue) !== Number(currentValue);
+}
+
+export async function loadConfig(store: Store): Promise<AppConfig> {
+  return materialise(await store.config.all());
+}
+
+export async function updateConfig(
+  store: Store,
+  updates: Record<string, unknown>,
+  actor: string,
+  sourceNote?: string | null,
+): Promise<{ config: AppConfig; issues: ValidationIssue[] }> {
+  const entries = await store.config.all();
+  const current = materialise(entries);
+  const proposed: AppConfig = { ...current };
+
+  for (const [key, value] of Object.entries(updates)) {
+    const field = KEY_MAP[key];
+    if (!field) throw new BookingError('CONFIG_INVALID', { key, message: `Unknown setting: ${key}` });
+    (proposed as unknown as Record<string, unknown>)[field] = value;
+  }
+
+  const issues = validate(proposed);
+  if (issues.length > 0) return { config: current, issues };
+
+  for (const [key, value] of Object.entries(updates)) {
+    const field = KEY_MAP[key]!;
+    if (requiresSourceNote(key, current[field], value) && !sourceNote?.trim()) {
+      return {
+        config: current,
+        issues: [{
+          key,
+          message: 'Changing the venue maximum requires a documented source, for example the certificate of approval reference.',
+        }],
+      };
+    }
+    await store.config.set(key, value, actor, sourceNote ?? null);
+  }
+
+  return { config: await loadConfig(store), issues: [] };
+}

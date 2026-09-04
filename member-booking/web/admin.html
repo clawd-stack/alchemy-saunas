@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Configuration, Alchemy member booking</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <main class="wrap">
+    <p class="eyebrow">Alchemy East Fremantle</p>
+    <h1>Member channel configuration</h1>
+    <p class="lede">Changes take effect immediately, with no deploy. The allocation cannot be set above what the venue ceiling allows.</p>
+    <div id="messages"></div>
+
+    <section class="card" id="signin-card">
+      <h2 style="margin-top:0">Sign in</h2>
+      <form id="signin-form" class="stack">
+        <div>
+          <label for="email">Email</label>
+          <input id="email" type="email" autocomplete="email" required>
+        </div>
+        <button class="btn-primary" type="submit">Send sign-in link</button>
+      </form>
+    </section>
+
+    <section id="admin-section" class="hidden">
+      <div id="warnings"></div>
+      <div id="capacity-summary" class="card"></div>
+      <form id="config-form" class="card stack"></form>
+      <div class="card">
+        <h2 style="margin-top:0">Capacity audit</h2>
+        <p class="muted" style="margin-top:0">Every booking, cancellation and refusal, with the occupancy at the time.</p>
+        <div id="audit"></div>
+      </div>
+    </section>
+  </main>
+  <script type="module" src="/admin.js"></script>
+</body>
+</html>

@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Private channel: keep it out of search results. This is a distribution
+       choice, not a security control; access is enforced server-side. -->
+  <meta name="robots" content="noindex, nofollow">
+  <title>Member booking, Alchemy East Fremantle</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <main class="wrap">
+    <p class="eyebrow">Alchemy East Fremantle</p>
+    <h1>Member booking</h1>
+    <p class="lede" id="lede">Your member spot is included in your membership. Bring up to three guests at $35 each, paid by card at the venue.</p>
+
+    <div id="messages"></div>
+
+    <!-- Sign in ------------------------------------------------------- -->
+    <section class="card" id="signin-card">
+      <h2 style="margin-top:0">Sign in</h2>
+      <p class="muted" style="margin-top:0">Enter the email on your Alchemy membership and we will send you a sign-in link. No password needed.</p>
+      <form id="signin-form" class="stack">
+        <div>
+          <label for="email">Email</label>
+          <input id="email" name="email" type="email" autocomplete="email" required placeholder="you@example.com">
+        </div>
+        <button class="btn-primary" type="submit" id="signin-button">Send my sign-in link</button>
+      </form>
+    </section>
+
+    <!-- Booking flow -------------------------------------------------- -->
+    <section id="booking-section" class="hidden">
+      <div class="card">
+        <div class="row row--between">
+          <div>
+            <strong id="member-name"></strong>
+            <p class="muted" style="margin:2px 0 0">Signed in</p>
+          </div>
+          <button class="btn-quiet btn-small" id="signout">Sign out</button>
+        </div>
+      </div>
+
+      <h2>Choose a session</h2>
+      <div class="days" id="days"></div>
+      <div class="slots" id="slots"></div>
+      <p class="spinner" id="slots-empty" hidden>No sessions available on this day.</p>
+
+      <div class="card hidden" id="guest-card">
+        <h2 style="margin-top:0">Who is coming?</h2>
+        <p class="muted" style="margin-top:0" id="selected-label"></p>
+
+        <div class="stack" id="guest-fields"></div>
+
+        <div class="row" style="margin-top:16px">
+          <button class="btn-quiet btn-small" id="add-guest" type="button">Add a guest</button>
+          <span class="muted" id="guest-count"></span>
+        </div>
+
+        <div class="row row--between" style="margin-top:20px; align-items:flex-end">
+          <div>
+            <span class="muted">To pay at the door</span>
+            <div style="font-size:22px; font-weight:700" id="amount">$0.00</div>
+          </div>
+          <button class="btn-primary" id="confirm" type="button">Confirm booking</button>
+        </div>
+        <p class="hint" id="policy-note"></p>
+      </div>
+
+      <h2 id="bookings">Your bookings</h2>
+      <div id="my-bookings"><p class="spinner">Loading…</p></div>
+    </section>
+  </main>
+
+  <script type="module" src="/booking.js"></script>
+</body>
+</html>

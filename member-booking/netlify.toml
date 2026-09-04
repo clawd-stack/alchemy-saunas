@@ -1,0 +1,35 @@
+# Alchemy East Fremantle member booking channel.
+# The Webflow site stays the public presentation layer; this project owns the API
+# and the three internal pages (booking embed, door list, admin config).
+
+[build]
+  base = "member-booking"
+  publish = "web"
+  functions = "netlify/functions"
+  command = "npm run check"
+
+[functions]
+  node_bundler = "esbuild"
+  directory = "netlify/functions"
+
+# Scheduled functions declare their own cadence via `export const config`
+# in netlify/functions/cron-*.ts, so no plugin is needed here.
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "SAMEORIGIN"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+# The booking embed is loaded inside the Webflow page, so it must be framable
+# by the Alchemy site specifically (not by anyone).
+[[headers]]
+  for = "/booking.html"
+  [headers.values]
+    X-Frame-Options = ""
+    Content-Security-Policy = "frame-ancestors 'self' https://*.webflow.io https://alchemysaunas.com.au https://*.alchemysaunas.com.au"
+
+[dev]
+  framework = "#static"
+  publish = "web"
