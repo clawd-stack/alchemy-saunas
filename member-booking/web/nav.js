@@ -17,6 +17,7 @@ import { api, el } from '/api.js';
 
 const LINKS = {
   booking: { href: '/booking.html', label: 'Book' },
+  account: { href: '/account.html', label: 'My account' },
   doorlist: { href: '/doorlist.html', label: 'Door list' },
   admin: { href: '/admin.html', label: 'Settings' },
 };
@@ -90,13 +91,18 @@ function render(list, who, session) {
   const member = session?.member ?? null;
 
   const visible = [LINKS.booking];
+
+  // A signed-in member gets their own account; there is nothing there for a
+  // member who is not signed in, and a dead link is worse than no link.
+  if (member) visible.push(LINKS.account);
+
   if (staff) {
     visible.push(LINKS.doorlist);
     if (staff.role === 'admin' || staff.role === 'manager') visible.push(LINKS.admin);
-  } else {
-    // Signed out, the staff pages still have to be reachable: somebody has to
-    // be able to get to a sign-in form. They are authenticated on the server,
-    // so listing them reveals nothing.
+  } else if (!member) {
+    // Signed out entirely, the staff pages still have to be reachable:
+    // somebody has to be able to get to a sign-in form. They are
+    // authenticated on the server, so listing them reveals nothing.
     visible.push(LINKS.doorlist, LINKS.admin);
   }
 

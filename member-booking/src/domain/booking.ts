@@ -212,6 +212,21 @@ export async function listMemberBookings(context: Context, memberId: string): Pr
   return context.store.bookings.listForMember(memberId, from);
 }
 
+/**
+ * The same list, reaching back far enough to be a history rather than a
+ * schedule. The booking page wants what is coming up; the account page wants
+ * what a member has actually done, which is a different question and a
+ * different window.
+ */
+export async function listMemberHistory(
+  context: Context,
+  memberId: string,
+  lookbackDays = 365,
+): Promise<BookingRecord[]> {
+  const from = new Date(Date.now() - lookbackDays * 24 * 60 * 60_000);
+  return context.store.bookings.listForMember(memberId, from);
+}
+
 function normaliseGuests(guests: GuestInput[] | undefined, maxGuests: number): GuestInput[] {
   const list = Array.isArray(guests) ? guests : [];
   if (list.length > maxGuests) {
