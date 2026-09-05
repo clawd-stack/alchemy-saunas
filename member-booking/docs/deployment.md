@@ -14,6 +14,15 @@ in a chat transcript.
 | **Build settings** | In `netlify.toml` at the **repository root**: base `member-booking`, build `npm run typecheck`, publish `web`, functions `netlify/functions`. Leave every UI build field empty so this file stays authoritative. |
 | **Admin access** | `clawd@ragan.com.au` is seeded as an admin, so there is a working way into the config and door list screens on first deploy. |
 
+## Migrations are immutable once applied
+
+Never edit a migration in `netlify/database/migrations/` that has already run.
+Netlify DB checksums them and refuses the deploy with "migration ... has been
+modified after being applied", which blocks the publish. Add a new numbered
+migration instead. Local runs and CI will not catch this, because they build
+the schema from scratch each time; only a deploy against an existing database
+sees it.
+
 ## A trap worth knowing about
 
 The first deploy reported "ready" while having done nothing useful: no build
