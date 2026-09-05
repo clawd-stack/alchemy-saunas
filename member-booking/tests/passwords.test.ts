@@ -241,6 +241,35 @@ describe('POST /api/auth/login', () => {
   });
 });
 
+describe('signing in with a password that still has to be changed', () => {
+  /**
+   * The regression this guards is a UI one with a nasty shape: the sign-in
+   * succeeded, the cookie was set, and the page still showed the sign-in form,
+   * because the handler returned early to show the change-password step. From
+   * the outside that is identical to a rejected password, and it is the one
+   * failure a person cannot tell apart or work around.
+   *
+   * The API contract the fixed screen relies on: a must-change sign-in is a
+   * complete, working sign-in that happens to carry a flag.
+   */
+  it('is a real sign-in, cookie and all, not a half state', async () => {
+    await seedCredential(ADMIN.email, GOOD_PASSWORD, true);
+    const response = await loginHandler(request('/api/auth/login', { email: ADMIN.email, password: GOOD_PASSWORD }));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('set-cookie')).toContain(STAFF_COOKIE);
+
+    const body = await response.json();
+    expect(body.mustChangePassword).toBe(true);
+    expect(body.role).toBe('admin');
+
+    // And the session it issued genuinely works, rather than waiting on the
+    // password being changed first.
+    const cookie = (response.headers.get('set-cookie') ?? '').split(';')[0];
+    expect((await credentialsHandler(get('/api/admin/credentials', cookie))).status).toBe(200);
+  });
+});
+
 describe('POST /api/auth/password', () => {
   it('requires a session', async () => {
     const response = await passwordHandler(

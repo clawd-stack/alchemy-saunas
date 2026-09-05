@@ -36,11 +36,16 @@ export function mountSignIn({ formId, buttonId, emailId, passwordId, messages, o
       // Clear the field before anything else can go wrong or the page reloads.
       document.getElementById(passwordId).value = '';
 
+      // Always hand off first, whatever else is pending. An earlier version
+      // returned here when a password had to be changed, which left the
+      // sign-in form on screen behind the change form: from the outside that
+      // is indistinguishable from a sign-in that failed, and it is the one
+      // state a person cannot debug for themselves.
+      await onSignedIn(result);
+
       if (result.mustChangePassword) {
         showPasswordChange({ messages, onDone: onSignedIn, forced: true });
-        return;
       }
-      await onSignedIn(result);
     } catch (error) {
       notice(messages, 'bad', error.message);
     } finally {
@@ -53,10 +58,12 @@ export function mountSignIn({ formId, buttonId, emailId, passwordId, messages, o
 /**
  * The change-password form.
  *
- * Shown as a required step after signing in with a manager-issued password, and
- * available on demand from the account row. Forced mode has no way out other
- * than completing it, because the password being replaced is one somebody else
- * has seen.
+ * Prompted after signing in with a manager-issued password, and available on
+ * demand from the account row. Prompted, not enforced: must-change was only
+ * ever a UI gate, since the session cookie already works against every
+ * endpoint, and dressing it up as a hard gate bought nothing while making a
+ * successful sign-in look like a failed one. It can be dismissed, and it comes
+ * back on the next sign-in until the password is actually changed.
  */
 export function showPasswordChange({ messages, onDone, forced = false, host }) {
   const target = host ?? document.getElementById('password-change') ?? createHost();
@@ -74,7 +81,7 @@ export function showPasswordChange({ messages, onDone, forced = false, host }) {
       class: 'muted',
       style: 'margin:0',
       text: forced
-        ? 'The password you just used was issued to you, so somebody else has seen it. Choose one only you know.'
+        ? 'You are signed in. The password you used was issued to you, so somebody else has seen it: choose one only you know.'
         : 'You will need your current password.',
     }),
     el('div', {}, [el('label', { text: 'Current password' }), current]),
@@ -84,11 +91,13 @@ export function showPasswordChange({ messages, onDone, forced = false, host }) {
     result,
   ]);
 
-  if (!forced) {
-    const cancel = el('button', { class: 'btn-quiet btn-small', type: 'button', text: 'Cancel' });
-    cancel.addEventListener('click', () => target.classList.add('hidden'));
-    form.append(cancel);
-  }
+  const cancel = el('button', {
+    class: 'btn-quiet btn-small',
+    type: 'button',
+    text: forced ? 'Not now' : 'Cancel',
+  });
+  cancel.addEventListener('click', () => target.classList.add('hidden'));
+  form.append(cancel);
 
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
