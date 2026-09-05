@@ -235,21 +235,52 @@ describe('bootstrap admin from the environment', () => {
     expect(body.mustChangePassword).toBe(false);
   });
 
-  it('never overwrites a password somebody has since chosen', async () => {
+  it('takes over a credential already sitting on the address', async () => {
+    // The state a database with history is in, and the one that made the
+    // create-once version a permanent no-op: a row already there, from a
+    // password issued earlier or a half-finished attempt.
+    await store.credentials.setPassword({
+      email: 'boot@alchemysaunas.com.au',
+      passwordHash: await hashPassword('some-other-password'),
+      mustChange: true,
+    });
+
+    process.env.ADMIN_BOOTSTRAP_EMAIL = 'boot@alchemysaunas.com.au';
+    process.env.ADMIN_BOOTSTRAP_PASSWORD = 'a-long-bootstrap-password';
+
+    expect((await loginHandler(login('boot@alchemysaunas.com.au', 'a-long-bootstrap-password'))).status).toBe(200);
+    expect((await loginHandler(login('boot@alchemysaunas.com.au', 'some-other-password'))).status).toBe(401);
+  });
+
+  it('reinstates the staff row, so a correct password is not refused behind it', async () => {
+    // A password that verifies against an address with no active staff row
+    // falls through to the membership lookup and is refused anyway: the same
+    // failure wearing a different hat.
     process.env.ADMIN_BOOTSTRAP_EMAIL = 'boot@alchemysaunas.com.au';
     process.env.ADMIN_BOOTSTRAP_PASSWORD = 'a-long-bootstrap-password';
     await loginHandler(login('boot@alchemysaunas.com.au', 'a-long-bootstrap-password'));
 
-    // They choose their own.
+    const row = (await store.auth.listStaff()).find((s) => s.email === 'boot@alchemysaunas.com.au');
+    await store.auth.setStaffActive(row!.staffId, false);
+
+    expect((await loginHandler(login('boot@alchemysaunas.com.au', 'a-long-bootstrap-password'))).status).toBe(200);
+  });
+
+  it('stops mattering entirely once the password variable is removed', async () => {
+    process.env.ADMIN_BOOTSTRAP_EMAIL = 'boot@alchemysaunas.com.au';
+    process.env.ADMIN_BOOTSTRAP_PASSWORD = 'a-long-bootstrap-password';
+    await loginHandler(login('boot@alchemysaunas.com.au', 'a-long-bootstrap-password'));
+
+    // Unset it, then choose your own: nothing puts the old one back.
+    delete process.env.ADMIN_BOOTSTRAP_PASSWORD;
     await store.credentials.setPassword({
       email: 'boot@alchemysaunas.com.au',
       passwordHash: await hashPassword('their-own-password'),
       mustChange: false,
     });
 
-    // Leaving the variable set must not put the old one back.
-    expect((await loginHandler(login('boot@alchemysaunas.com.au', 'a-long-bootstrap-password'))).status).toBe(401);
     expect((await loginHandler(login('boot@alchemysaunas.com.au', 'their-own-password'))).status).toBe(200);
+    expect((await loginHandler(login('boot@alchemysaunas.com.au', 'a-long-bootstrap-password'))).status).toBe(401);
   });
 
   it('does nothing for any other address, and nothing when unset', async () => {

@@ -1,8 +1,9 @@
-import { hashPassword } from '../lib/password.ts';
+import { hashPassword, verifyPassword } from '../lib/password.ts';
 import type { Store } from '../store/types.ts';
 
 /**
- * The first admin, from the environment rather than from a migration.
+ * The named admin, reconciled from the environment on every sign-in attempt
+ * for that one address.
  *
  * Seeding an admin password in a migration puts its hash in the repository,
  * and this repository is public. scrypt makes that expensive to attack rather
@@ -11,48 +12,56 @@ import type { Store } from '../store/types.ts';
  * 007 does exactly that for the existing bootstrap account and should be
  * treated as compromised until that password is changed.
  *
- * So the password lives in ADMIN_BOOTSTRAP_PASSWORD, is read only in the
- * process, and is written as a hash the first time the named address tries to
- * sign in.
+ * An earlier version of this created the account and then never touched it
+ * again. That was wrong against a database with history rather than a fresh
+ * migration run: any credential row already sitting on the address, from a
+ * password issued earlier or a half-finished attempt, made every later run a
+ * no-op, and the variable in the environment silently meant nothing. Sign-in
+ * refuses identically for every reason, so from outside it looked exactly like
+ * a mistyped password, with nothing to distinguish them.
  *
- * Three properties make this safe to leave switched on:
+ * So it reconciles instead. While the two variables are set, that address's
+ * password IS the value in ADMIN_BOOTSTRAP_PASSWORD, and its staff row is an
+ * active admin. Both are made true on every attempt, which is deterministic,
+ * self-healing, and costs one hash verification on one address.
  *
- *   It only ever creates. An existing credential is never touched, so the
- *   variable cannot be used to overwrite a password somebody has since chosen,
- *   and leaving it set after the first sign-in does nothing.
- *
- *   It runs for one address. Anything else short-circuits before touching the
- *   database, so the ordinary sign-in path costs nothing.
- *
- *   It creates a standing password, deliberately. An earlier version forced a
- *   change at first sign-in, which is the safer default and the wrong one
- *   here: the point of this account is that somebody can sign in with a known
- *   password without a round trip. That trade is the reason the value lives in
- *   the environment rather than in a migration, where it would be both
- *   standing and public.
+ * The consequence is worth stating plainly: a password chosen in the app is
+ * overwritten on the next sign-in while the variable is still set. To own the
+ * password from the app instead, remove ADMIN_BOOTSTRAP_PASSWORD; this then
+ * does nothing at all.
  */
 export async function ensureBootstrapAdmin(store: Store, email: string, venueId: string): Promise<void> {
   const wanted = process.env.ADMIN_BOOTSTRAP_EMAIL?.trim().toLowerCase();
   const password = process.env.ADMIN_BOOTSTRAP_PASSWORD;
   if (!wanted || !password || wanted !== email.toLowerCase()) return;
 
-  if (await store.credentials.get(wanted)) return;
+  // The staff row first. A correct password on an address with no active staff
+  // row falls through to the membership lookup and is refused anyway, which is
+  // the same failure wearing a different hat.
+  const staff = (await store.auth.listStaff()).find((s) => s.email.toLowerCase() === wanted);
+  if (!staff || !staff.active || staff.role !== 'admin') {
+    // upsertStaff conflicts on the address and sets active, so this reinstates
+    // a deactivated row rather than making a second one.
+    await store.auth.upsertStaff({
+      email: wanted,
+      displayName: staff?.displayName || process.env.ADMIN_BOOTSTRAP_NAME?.trim() || 'Alchemy admin',
+      role: 'admin',
+      venueIds: staff?.venueIds.length ? staff.venueIds : [venueId],
+    });
+    console.log(`[member-booking] bootstrap: reinstated the admin staff row for ${wanted}`);
+  }
 
-  // upsertStaff conflicts on the address and sets active, so this reinstates a
-  // deactivated row rather than making a second one, and needs no read first.
-  const existing = (await store.auth.listStaff()).find((s) => s.email.toLowerCase() === wanted);
-  await store.auth.upsertStaff({
-    email: wanted,
-    displayName: existing?.displayName || process.env.ADMIN_BOOTSTRAP_NAME?.trim() || 'Alchemy admin',
-    role: 'admin',
-    venueIds: existing?.venueIds.length ? existing.venueIds : [venueId],
-  });
+  const existing = await store.credentials.get(wanted);
+  if (existing?.active && (await verifyPassword(password, existing.passwordHash))) return;
 
   await store.credentials.setPassword({
     email: wanted,
     passwordHash: await hashPassword(password),
+    // A standing password, deliberately: the point of this account is that
+    // somebody can sign in with a known one without a round trip.
     mustChange: false,
   });
-
-  console.log(`[member-booking] bootstrapped the admin sign-in for ${wanted} from the environment`);
+  console.log(
+    `[member-booking] bootstrap: ${existing ? 'reset' : 'created'} the sign-in for ${wanted} from the environment`,
+  );
 }
