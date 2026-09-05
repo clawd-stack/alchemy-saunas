@@ -86,6 +86,12 @@ body {
 
 .nav-who { font-size: 13px; color: var(--ink-3); white-space: nowrap; }
 
+.nav-area {
+  font-size: 11px; font-weight: 600; letter-spacing: .13em; text-transform: uppercase;
+  color: var(--accent); border: 1px solid var(--line); border-radius: 999px;
+  padding: 3px 9px; white-space: nowrap;
+}
+
 .nav-toggle {
   display: none; width: 40px; height: 40px; padding: 0;
   background: transparent; border: 1px solid var(--line); border-radius: 8px;
@@ -107,6 +113,9 @@ body {
 
 @media (max-width: 720px) {
   .nav-toggle { display: inline-flex; }
+  /* An author `display` beats the UA rule for [hidden], so a menu with
+     nothing in it would still show its button on the sign-in page. */
+  .nav-toggle[hidden] { display: none; }
   .site-nav {
     position: absolute; left: 0; right: 0; top: 100%;
     background: var(--raise); border-bottom: 1px solid var(--line);
@@ -291,3 +300,35 @@ tr:last-child td { border-bottom: 0; }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
+
+/* Admin hub tiles --------------------------------------------------- */
+
+.tiles {
+  display: grid; gap: 10px; margin: 0 0 20px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+.tile {
+  display: flex; flex-direction: column; gap: 5px;
+  padding: 18px; border: 1px solid var(--line); border-radius: var(--r-lg);
+  background: var(--raise); text-decoration: none; color: inherit;
+  transition: border-color 140ms ease, transform 140ms ease;
+}
+.tile:hover { border-color: var(--accent); transform: translateY(-1px); }
+.tile__label { font-weight: 600; font-size: 16px; color: var(--ink); }
+.tile__blurb { font-size: 14px; color: var(--ink-2); line-height: 1.45; }
+
+/* Grouped settings -------------------------------------------------- */
+
+.group {
+  border: 1px solid var(--line); border-radius: var(--r-lg);
+  background: var(--raise); padding: 4px 18px 18px; margin: 0 0 14px;
+}
+.group legend {
+  font-size: 12px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .13em; color: var(--ink-3); padding: 0 8px;
+}
+.group__fields { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+/* A tall textarea beside a one-line input leaves a column of dead space. */
+.group__fields--stack { grid-template-columns: 1fr; }
+.group__fields > div { min-width: 0; }
+.group .hint { margin: 0 0 14px; }
