@@ -32,6 +32,11 @@ export interface AppConfig {
   waiverText: WaiverText;
   operatingHours: Record<string, [string, string]>;
   bookingBackend: 'local' | 'hapana';
+  /**
+   * Where a member writes when the screen cannot help them. Empty hides the
+   * link rather than showing one that goes nowhere.
+   */
+  supportEmail: string;
 }
 
 export const CONFIG_DEFAULTS: AppConfig = {
@@ -60,6 +65,10 @@ export const CONFIG_DEFAULTS: AppConfig = {
     sun: ['05:00', '21:00'],
   },
   bookingBackend: 'local',
+  // A guess at the venue's address, and editable in Settings precisely
+  // because it is one. Wrong here is worse than absent: a support link that
+  // bounces is a member who thinks they were ignored.
+  supportEmail: 'hello@alchemysaunas.com.au',
 };
 
 const KEY_MAP: Record<string, keyof AppConfig> = {
@@ -76,6 +85,7 @@ const KEY_MAP: Record<string, keyof AppConfig> = {
   waiver_text: 'waiverText',
   operating_hours: 'operatingHours',
   booking_backend: 'bookingBackend',
+  support_email: 'supportEmail',
 };
 
 export const CONFIG_KEYS = Object.keys(KEY_MAP);
@@ -147,6 +157,11 @@ export function validate(config: AppConfig): ValidationIssue[] {
   }
   if (!Number.isInteger(config.maxGuestsPerMember) || config.maxGuestsPerMember < 0 || config.maxGuestsPerMember > 10) {
     issues.push({ key: 'max_guests_per_member', message: 'Guests per member must be between 0 and 10.' });
+  }
+  // Deliberately loose: enough to catch a stray word or a missing @, not
+  // enough to argue with a valid address it has not heard of.
+  if (typeof config.supportEmail !== 'string' || (config.supportEmail !== '' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(config.supportEmail))) {
+    issues.push({ key: 'support_email', message: 'Support email must be an email address, or blank to hide the link.' });
   }
   if (!Number.isInteger(config.memberSessionDays) || config.memberSessionDays < 1 || config.memberSessionDays > 365) {
     issues.push({ key: 'member_session_days', message: 'Member sign-in must last between 1 and 365 days.' });

@@ -1,3 +1,4 @@
+import { buildContext } from '../../src/domain/context.ts';
 import { readMemberSession, readStaffSession } from '../../src/lib/auth.ts';
 import { MEMBER_COOKIE, STAFF_COOKIE, clearCookie, errorResponse, json, preflight } from '../../src/lib/http.ts';
 
@@ -21,8 +22,13 @@ export default async (request: Request): Promise<Response> => {
 
     const member = readMemberSession(request);
     const staff = readStaffSession(request);
+    const context = await buildContext();
     return json(request, {
       ok: true,
+      // The header is on every page and is the one component that always
+      // runs, so the address it needs comes back with the session rather
+      // than costing a second request.
+      supportEmail: context.config.supportEmail,
       member: member ? { memberId: member.memberId, name: member.name, email: member.email } : null,
       // The email is the caller's own, and the admin pages show it so
       // somebody with two accounts can tell which one they are signed into.
