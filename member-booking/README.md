@@ -105,7 +105,9 @@ ones that prove the concurrency behaviour:
 
 ```bash
 createdb member_booking_test
-psql -d member_booking_test -f db/schema.sql -f db/seed.sql
+for dir in netlify/database/migrations/*/; do
+  psql -d member_booking_test -v ON_ERROR_STOP=1 -f "$dir/migration.sql"
+done
 DATABASE_URL=postgres://localhost/member_booking_test npm test
 ```
 
@@ -126,9 +128,11 @@ printed to the function log: that is how you sign in locally.
 
 ## Deploying
 
-1. **Database.** Create a Postgres database (a Supabase project is the obvious
-   choice, since Ragan already runs one). Run `db/schema.sql`, then
-   `db/seed.sql`. Both are idempotent.
+1. **Database.** Nothing to do. Netlify DB provisions Postgres on the first
+   deploy and applies everything in `netlify/database/migrations/` before the
+   deploy is published, in order, with a failed migration blocking publish.
+   Deploy previews get their own isolated database branch, so a preview can
+   never write to production data.
 2. **Netlify.** Point a site at this directory. `netlify.toml` sets the build,
    the functions directory and the security headers. The build command runs the
    typecheck and the test suite, so a deploy cannot ship a failing suite.
@@ -148,8 +152,9 @@ printed to the function log: that is how you sign in locally.
 ## What is here
 
 ```
-db/schema.sql        Tables, constraints, and the booking functions. The lock lives here.
-db/seed.sql          Venue, config defaults, staff rows.
+netlify/database/migrations/  Schema and seed, applied automatically on deploy.
+                              001 holds the tables and the booking functions,
+                              where the lock lives. 002 seeds venue and config.
 src/lib/             Config, errors, email, auth, time, crypto, HTTP helpers.
 src/store/           Store interface, Postgres implementation, in-memory implementation.
 src/adapters/hapana/ Client, field mapping, adapter, mock. Everything Hapana-shaped is here.

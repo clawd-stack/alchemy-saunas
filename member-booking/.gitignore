@@ -5,3 +5,6 @@ node_modules/
 .netlify/
 dist/
 *.log
+
+# Netlify local state
+.netlify/

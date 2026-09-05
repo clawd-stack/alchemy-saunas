@@ -27,10 +27,11 @@ import type {
 type Sql = ReturnType<typeof postgres>;
 
 let shared: Sql | null = null;
+let overrideConnectionString: string | null = null;
 
 function sql(): Sql {
   if (!shared) {
-    shared = postgres(env.databaseUrl, {
+    shared = postgres(overrideConnectionString ?? env.databaseUrl, {
       // Serverless: small pool, short idle, prepared statements off because
       // connections are frequently recycled behind a pooler.
       max: 3,
@@ -161,7 +162,8 @@ async function loadBookings(where: (s: Sql) => Promise<any[]>): Promise<BookingR
   return rows.map((r) => mapBooking(r, byBooking.get(r.booking_id) ?? []));
 }
 
-export function createPgStore(): Store {
+export function createPgStore(connectionString?: string): Store {
+  if (connectionString) overrideConnectionString = connectionString;
   return {
     bookings: {
       async create(input: CreateBookingInput): Promise<CreateBookingResult> {
@@ -610,6 +612,7 @@ export function createPgStore(): Store {
       if (shared) {
         await shared.end({ timeout: 5 });
         shared = null;
+        overrideConnectionString = null;
       }
     },
   };

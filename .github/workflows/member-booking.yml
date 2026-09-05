@@ -60,10 +60,14 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Load schema
+      - name: Apply migrations
+        # The same migration files Netlify DB applies on deploy, in the same
+        # order, so CI tests the schema that production will actually have.
         run: |
-          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/schema.sql
-          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/seed.sql
+          for dir in $(ls -d netlify/database/migrations/*/ | sort); do
+            echo "applying $dir"
+            psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$dir/migration.sql"
+          done
 
       - name: Test
         run: npx vitest run

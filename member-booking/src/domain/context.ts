@@ -24,17 +24,33 @@ export interface Context {
 let cachedStore: Store | null = null;
 let cachedMembership: MembershipSource | null = null;
 
-function resolveStore(): Store {
+async function resolveStore(): Promise<Store> {
   if (cachedStore) return cachedStore;
-  if (process.env.DATABASE_URL) {
+
+  // An explicit connection string wins, so local work and CI can point at
+  // their own Postgres. Otherwise ask Netlify DB, which provisions the
+  // database on deploy and knows which branch this deploy should talk to.
+  if (env.hasDatabaseUrl) {
     cachedStore = createPgStore();
-  } else {
-    if (env.isProduction) {
-      throw new Error('DATABASE_URL is required in production; refusing to start with the in-memory store');
-    }
-    console.warn('[member-booking] No DATABASE_URL: using the in-memory store. Nothing will persist.');
-    cachedStore = createMemoryStore();
+    return cachedStore;
   }
+
+  try {
+    const { getConnectionString } = await import('@netlify/database');
+    const connectionString = getConnectionString();
+    if (connectionString) {
+      cachedStore = createPgStore(connectionString);
+      return cachedStore;
+    }
+  } catch {
+    // Not running on Netlify, or the package is unavailable. Fall through.
+  }
+
+  if (env.isProduction) {
+    throw new Error('No database available in production; refusing to start with the in-memory store');
+  }
+  console.warn('[member-booking] No database: using the in-memory store. Nothing will persist.');
+  cachedStore = createMemoryStore();
   return cachedStore;
 }
 
@@ -53,7 +69,7 @@ function resolveMembership(): MembershipSource {
 }
 
 export async function buildContext(venueIdOverride?: string): Promise<Context> {
-  const store = resolveStore();
+  const store = await resolveStore();
   const membership = resolveMembership();
   const config = await loadConfig(store);
   const venueId = venueIdOverride ?? env.defaultVenueId;

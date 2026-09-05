@@ -21,7 +21,12 @@ export default async (request: Request): Promise<Response> => {
 
   try {
     context = await buildContext();
-    checks.push({ name: 'store', ok: true, detail: process.env.DATABASE_URL ? 'postgres' : 'in-memory (not production safe)' });
+    const dbSource = process.env.DATABASE_URL
+      ? 'postgres (DATABASE_URL)'
+      : process.env.NETLIFY_DATABASE_URL
+        ? 'postgres (Netlify DB)'
+        : 'in-memory (not production safe)';
+    checks.push({ name: 'store', ok: !dbSource.startsWith('in-memory'), detail: dbSource });
   } catch (error) {
     checks.push({ name: 'store', ok: false, detail: error instanceof Error ? error.message : String(error) });
   }

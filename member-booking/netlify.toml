@@ -6,7 +6,10 @@
   base = "member-booking"
   publish = "web"
   functions = "netlify/functions"
-  command = "npm run check"
+  # Typecheck only. The test suite runs in GitHub Actions against a throwaway
+  # Postgres; running it here risks pointing the integration tests at the
+  # database Netlify has provisioned for this site.
+  command = "npm run typecheck"
 
 [functions]
   node_bundler = "esbuild"

@@ -16,8 +16,18 @@ function optional(name: string, fallback = ''): string {
 }
 
 export const env = {
+  /**
+   * Postgres connection string. Netlify DB provisions the database and exposes
+   * it as NETLIFY_DATABASE_URL; DATABASE_URL wins when set, so local work and
+   * CI can point at their own Postgres without touching the deployed one.
+   */
   get databaseUrl(): string {
-    return required('DATABASE_URL');
+    const url = process.env.DATABASE_URL ?? process.env.NETLIFY_DATABASE_URL;
+    if (!url) throw new Error('No database connection string: set DATABASE_URL, or deploy where Netlify DB provides NETLIFY_DATABASE_URL');
+    return url;
+  },
+  get hasDatabaseUrl(): boolean {
+    return Boolean(process.env.DATABASE_URL ?? process.env.NETLIFY_DATABASE_URL);
   },
   /** Signing key for member and staff session cookies, and for token hashing. */
   get sessionSecret(): string {
