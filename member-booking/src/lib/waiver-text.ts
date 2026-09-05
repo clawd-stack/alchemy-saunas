@@ -30,7 +30,7 @@ export interface WaiverText {
   declaration: string;
 }
 
-export const WAIVER_VERSION = 'ALCHEMY-TOU-2026-09';
+export const WAIVER_VERSION = 'ALCHEMY-TOU-2026-09B';
 
 export const DEFAULT_WAIVER_TEXT: WaiverText = {
   version: WAIVER_VERSION,
@@ -75,7 +75,7 @@ export const DEFAULT_WAIVER_TEXT: WaiverText = {
     },
   ],
   declaration:
-    'By typing my name below I confirm I am 18 or over, that I have read and agree to the Alchemy Saunas Terms of Use and the conditions above, and that the health statement above is true for me.',
+    'By signing below I confirm I am 18 or over, that I have read and agree to the Alchemy Saunas Terms of Use and the conditions above, and that the health statement above is true for me.',
 };
 
 /**

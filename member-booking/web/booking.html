@@ -38,11 +38,13 @@
     <section id="booking-section" class="hidden">
       <p class="month" id="month"></p>
       <div class="days" id="days"></div>
-      <div class="slots" id="slots"></div>
+      <p class="day-heading" id="day-heading" hidden></p>
+      <div class="sessions" id="slots"></div>
       <p class="spinner" id="slots-empty" hidden>No sessions this day.</p>
 
       <div class="card card--pad hidden" id="guest-card">
         <h3 id="selected-label"></h3>
+        <p class="muted selected-detail" id="selected-detail" hidden></p>
         <div class="stack" id="guest-fields"></div>
         <div class="row row--tight" style="margin-top:20px">
           <button class="btn-quiet btn-small" id="add-guest" type="button">Add guest</button>

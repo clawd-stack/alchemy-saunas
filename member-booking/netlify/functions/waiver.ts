@@ -2,6 +2,7 @@ import { buildContext } from '../../src/domain/context.ts';
 import { getWaiverByToken, signWaiver } from '../../src/domain/waivers.ts';
 import { BookingError } from '../../src/lib/errors.ts';
 import { clientIp, errorResponse, json, preflight, readJson, requireString } from '../../src/lib/http.ts';
+import { normaliseSignature, SIGNATURE_HEIGHT, SIGNATURE_WIDTH } from '../../src/lib/signature.ts';
 import { formatLocal } from '../../src/lib/time.ts';
 
 
@@ -32,21 +33,29 @@ export default async (request: Request): Promise<Response> => {
           sessionLabel: formatLocal(waiver.sessionStartsAt, context.timezone),
           venueName: context.venueName,
           version: waiver.waiverVersion,
+          // Shown back to the guest on a waiver they have already signed, so
+          // the page can say "this is what you signed" rather than only when.
+          signature: waiver.status === 'signed' ? waiver.signature : null,
         },
+        signatureBox: { width: SIGNATURE_WIDTH, height: SIGNATURE_HEIGHT },
         text: context.config.waiverText,
       });
     }
 
     if (request.method !== 'POST') throw new BookingError('INVALID_REQUEST');
 
-    const body = await readJson<{ token?: unknown; signedName?: unknown; agreed?: unknown }>(request);
+    const body = await readJson<{
+      token?: unknown; signedName?: unknown; agreed?: unknown; signature?: unknown;
+    }>(request);
     const token = requireString(body.token, 'token', 400);
     const signedName = requireString(body.signedName, 'signedName', 120);
+    const signature = normaliseSignature(body.signature);
     if (body.agreed !== true) throw new BookingError('INVALID_REQUEST', { field: 'agreed' });
 
     const waiver = await signWaiver(context, {
       token,
       signedName,
+      signature,
       ip: clientIp(request),
       userAgent: request.headers.get('user-agent'),
     });

@@ -11,7 +11,7 @@ import { mountAdminPage, accountRow } from '/admin/shell.js';
 const DESTINATIONS = [
   {
     href: '/doorlist.html',
-    label: 'Door list',
+    label: 'Schedule',
     blurb: 'Who is coming, and what they owe at the door.',
   },
   {

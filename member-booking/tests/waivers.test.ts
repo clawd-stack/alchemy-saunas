@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { createBooking, cancelBooking } from '../src/domain/booking.ts';
 import { getWaiverByToken, sendWaiverReminders, signWaiver } from '../src/domain/waivers.ts';
+import { normaliseSignature } from '../src/lib/signature.ts';
 import { guests, makeHarness } from './helpers.ts';
+
+/** A short scribble in the coordinate space the pad writes out. */
+const SIGNATURE = 'M120 260L240 140L300 280L420 130L520 250';
 
 const MEMBER = { memberId: 'mem-1', email: 'member1@example.com', name: 'Member One' };
 
@@ -41,9 +45,12 @@ describe('waivers (PRD 5.4)', () => {
 
     // Sign through the same path the page uses.
     const waiverId = waivers[0]!.waiverId;
-    const signed = await store.waivers.sign({ waiverId, signedName: 'Guest One', ip: null, userAgent: null });
+    const signed = await store.waivers.sign({
+      waiverId, signedName: 'Guest One', signature: SIGNATURE, ip: null, userAgent: null,
+    });
     expect(signed?.status).toBe('signed');
     expect(signed?.signedAt).not.toBeNull();
+    expect(signed?.signature).toBe(SIGNATURE);
 
     const refreshed = await store.bookings.get(booking.bookingId);
     expect(refreshed?.guests[0]?.waiverStatus).toBe('signed');
@@ -53,7 +60,9 @@ describe('waivers (PRD 5.4)', () => {
     const { context, store, session } = makeHarness();
     const { booking } = await createBooking(context, MEMBER, { externalSessionId: session.id, guests: guests(1) });
     const waivers = await store.waivers.listForBooking(booking.bookingId);
-    await store.waivers.sign({ waiverId: waivers[0]!.waiverId, signedName: 'Guest One', ip: null, userAgent: null });
+    await store.waivers.sign({
+      waiverId: waivers[0]!.waiverId, signedName: 'Guest One', signature: SIGNATURE, ip: null, userAgent: null,
+    });
 
     await cancelBooking(context, MEMBER.memberId, booking.bookingId);
 
@@ -106,11 +115,63 @@ describe('waiver token handling', () => {
   it('rejects a token that was never issued', async () => {
     const { context } = makeHarness();
     expect(await getWaiverByToken(context, 'a'.repeat(40))).toBeNull();
-    expect(await signWaiver(context, { token: 'a'.repeat(40), signedName: 'X', ip: null, userAgent: null })).toBeNull();
+    expect(await signWaiver(context, {
+      token: 'a'.repeat(40), signedName: 'X', signature: SIGNATURE, ip: null, userAgent: null,
+    })).toBeNull();
   });
 
   it('rejects an obviously malformed token without a lookup', async () => {
     const { context } = makeHarness();
     expect(await getWaiverByToken(context, 'short')).toBeNull();
+  });
+});
+
+/**
+ * BookingError keeps the generic wording on Error.message and the wording the
+ * guest actually sees on userMessage, so that is what these assert.
+ */
+function refusalFor(value: unknown): { code: string; userMessage: string } {
+  try {
+    normaliseSignature(value);
+  } catch (error) {
+    return error as unknown as { code: string; userMessage: string };
+  }
+  throw new Error(`expected ${JSON.stringify(value)} to be refused`);
+}
+
+describe('the drawn signature', () => {
+  it('keeps a scribble as it was drawn', () => {
+    expect(normaliseSignature(SIGNATURE)).toBe(SIGNATURE);
+    expect(normaliseSignature(`  ${SIGNATURE}  `)).toBe(SIGNATURE);
+  });
+
+  it('refuses a single tap, which is a smudge rather than a signature', () => {
+    expect(refusalFor('M120 260').userMessage).toMatch(/sign in the box/i);
+  });
+
+  it('refuses an empty box', () => {
+    for (const value of ['', '   ', null, undefined, 42, {}]) {
+      expect(refusalFor(value).userMessage).toMatch(/sign in the box/i);
+    }
+  });
+
+  it('refuses anything that is not the two path commands and numbers', () => {
+    // Nothing here can reach a page as markup, because nothing but digits,
+    // spaces, M and L survives.
+    for (const value of [
+      'M0 0L1 1"/><script>alert(1)</script>',
+      '<svg onload=alert(1)>',
+      'M0 0Z',
+      'M0 0L1 1 z',
+      'M-5 0L1 1',
+      'M0.5 0L1 1',
+    ]) {
+      expect(refusalFor(value).code, String(value)).toBe('INVALID_REQUEST');
+    }
+  });
+
+  it('refuses a path longer than any real signature', () => {
+    const long = `M0 0${'L1 1'.repeat(5000)}`;
+    expect(refusalFor(long).code).toBe('INVALID_REQUEST');
   });
 });

@@ -37,9 +37,10 @@ const GROUPS = [
   },
   {
     title: 'Contact',
-    note: 'Shown as "Email us" under the sign-in form and in the member menu. Blank hides it.',
+    note: 'The email is shown as "Email us" under the sign-in form and in the member menu. The address is shown on the session a member is about to book. Blank hides either.',
     fields: [
       { key: 'support_email', label: 'Support email', field: 'supportEmail', type: 'text' },
+      { key: 'venue_address', label: 'Venue address', field: 'venueAddress', type: 'text' },
     ],
   },
   {

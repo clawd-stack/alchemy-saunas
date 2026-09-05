@@ -86,6 +86,7 @@ interface WaiverRow {
   reminderSentAt: Date | null;
   signedAt: Date | null;
   signedName: string | null;
+  signature: string | null;
 }
 
 export interface MemoryStore extends Store {
@@ -216,6 +217,7 @@ export function createMemoryStore(): MemoryStore {
       sentAt: w.sentAt ? w.sentAt.toISOString() : null,
       reminderSentAt: w.reminderSentAt ? w.reminderSentAt.toISOString() : null,
       signedAt: w.signedAt ? w.signedAt.toISOString() : null,
+      signature: w.signature,
     };
   }
 
@@ -510,6 +512,7 @@ export function createMemoryStore(): MemoryStore {
           reminderSentAt: null,
           signedAt: null,
           signedName: null,
+          signature: null,
         };
         waivers.push(row);
         return toWaiverRecord(row);
@@ -539,6 +542,7 @@ export function createMemoryStore(): MemoryStore {
         row.status = 'signed';
         row.signedAt = row.signedAt ?? new Date();
         row.signedName = input.signedName;
+        row.signature = input.signature;
         return toWaiverRecord(row);
       },
       async listForBooking(bookingId: string): Promise<WaiverRecord[]> {
