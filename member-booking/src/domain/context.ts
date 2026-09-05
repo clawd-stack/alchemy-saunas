@@ -1,4 +1,4 @@
-import { createHapanaAdapter, type MembershipSource } from '../adapters/hapana/adapter.ts';
+import { createHapanaAdapter, createUnavailableMembership, type MembershipSource } from '../adapters/hapana/adapter.ts';
 import { createMockHapana } from '../adapters/hapana/mock.ts';
 import { createMemoryStore } from '../store/memory.ts';
 import { createPgStore } from '../store/pg.ts';
@@ -58,10 +58,14 @@ function resolveMembership(): MembershipSource {
   if (cachedMembership) return cachedMembership;
   if (process.env.HAPANA_API_KEY) {
     cachedMembership = createHapanaAdapter();
+  } else if (env.isProduction) {
+    // Never the mock in production: it answers "yes, a member" to anything.
+    // But refusing to build the context at all, which is what this used to do,
+    // takes down every endpoint including the screen where the key gets set.
+    // A source that answers nothing is the stricter option and the usable one.
+    console.warn('[member-booking] No HAPANA_API_KEY in production: member lookups will be refused.');
+    cachedMembership = createUnavailableMembership('HAPANA_API_KEY is not configured');
   } else {
-    if (env.isProduction) {
-      throw new Error('HAPANA_API_KEY is required in production; refusing to start with the mock membership source');
-    }
     console.warn('[member-booking] No HAPANA_API_KEY: using the Hapana mock.');
     cachedMembership = createMockHapana({ supportsWrites: false });
   }
