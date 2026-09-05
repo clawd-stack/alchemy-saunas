@@ -49,10 +49,27 @@ export const env = {
   get hapanaMemberClassId(): string {
     return optional('HAPANA_MEMBER_CLASS_ID');
   },
-  get emailProvider(): 'postmark' | 'resend' | 'console' {
+  get emailProvider(): 'postmark' | 'resend' | 'smtp' | 'console' {
     const value = optional('EMAIL_PROVIDER', 'console');
-    if (value === 'postmark' || value === 'resend' || value === 'console') return value;
+    if (value === 'postmark' || value === 'resend' || value === 'smtp' || value === 'console') return value;
     throw new Error(`Unsupported EMAIL_PROVIDER: ${value}`);
+  },
+  /**
+   * SMTP settings, used when EMAIL_PROVIDER=smtp. This exists so the channel
+   * can send through a mailbox the business already owns (Google Workspace,
+   * Microsoft 365) rather than requiring a new transactional email vendor.
+   */
+  get smtp(): { host: string; port: number; user: string; pass: string; secure: boolean } {
+    const host = optional('SMTP_HOST', 'smtp.gmail.com');
+    const port = Number(optional('SMTP_PORT', '465'));
+    return {
+      host,
+      port,
+      user: required('SMTP_USER'),
+      pass: required('SMTP_PASS'),
+      // 465 is implicit TLS; 587 upgrades with STARTTLS.
+      secure: port === 465,
+    };
   },
   get emailApiKey(): string {
     return optional('EMAIL_API_KEY');

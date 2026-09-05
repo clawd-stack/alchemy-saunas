@@ -16,11 +16,13 @@
   },
   "dependencies": {
     "@netlify/database": "^2.0.1",
+    "nodemailer": "^10.0.0",
     "postgres": "^3.4.4"
   },
   "devDependencies": {
     "@netlify/functions": "^2.8.1",
     "@types/node": "^20.14.0",
+    "@types/nodemailer": "^8.0.1",
     "typescript": "^5.5.4",
     "vitest": "^2.0.5"
   }

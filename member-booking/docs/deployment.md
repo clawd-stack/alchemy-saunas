@@ -49,26 +49,39 @@ The first build provisions the database and applies all three migrations.
 
 ### 2. Email provider (3 minutes, phone is fine)
 
-**This is the one thing that genuinely needs an account somewhere**, and it
-cannot be done without one. Until it is set, `EMAIL_PROVIDER=console` means
-sign-in links, waivers and cancellation notices are written to the Netlify
-function log and delivered to nobody.
+**The one item that genuinely needs a credential I cannot create.** Until it
+is set, `EMAIL_PROVIDER=console` writes sign-in links, waivers and
+cancellation notices to the Netlify function log and delivers them to nobody.
 
-That is enough to test with: open the function log in the Netlify app, find the
-sign-in link, tap it. It is not enough to open the channel to members, because
-members cannot sign in and guests never receive a waiver.
+That is enough to test with: open the function log in the Netlify app, find
+the sign-in link, tap it. It is not enough to open the channel to members,
+because members cannot sign in and guests never receive a waiver.
 
-To fix, on a phone:
+**Recommended: send through Google Workspace.** Alchemy already has it, so
+there is no new vendor, no monthly cost, no new domain reputation to build,
+and mail arrives from an address members recognise. Gmail's sending limits are
+far above anything one venue generates.
 
-1. Sign up at resend.com (free tier covers this volume) or postmarkapp.com.
-2. Create an API key.
-3. In Netlify → **alchemy-booking → Environment variables**, set:
-   - `EMAIL_PROVIDER` = `resend` (or `postmark`)
-   - `EMAIL_API_KEY` = the key
-   - `EMAIL_FROM` = a verified sender, e.g. `Alchemy Saunas <bookings@alchemysaunas.com.au>`
+1. On the Google account that will send (for example a bookings mailbox),
+   turn on 2-Step Verification if it is not already on.
+2. Google Account, Security, 2-Step Verification, App passwords. Generate one
+   and copy it. It can be revoked on its own later without touching the
+   mailbox password.
+3. In Netlify, alchemy-booking, Environment variables, set:
+   - `EMAIL_PROVIDER` = `smtp`
+   - `SMTP_USER` = the full sending address
+   - `SMTP_PASS` = the app password
+   - `EMAIL_FROM` = `Alchemy Saunas <that same address>`
+   - `SMTP_HOST` and `SMTP_PORT` already default to `smtp.gmail.com` and `465`
 4. Redeploy.
 
-No code change is needed: both providers are already implemented.
+**Alternative: a transactional vendor.** Resend or Postmark, if you would
+rather keep booking mail off the Workspace account or want delivery analytics.
+Sign up, create an API key, then set `EMAIL_PROVIDER` to `resend` or
+`postmark`, `EMAIL_API_KEY`, and `EMAIL_FROM` on a verified sender.
+
+All three are already implemented, so whichever you choose is configuration
+only, with no code change.
 
 ### 3. Hapana credentials
 

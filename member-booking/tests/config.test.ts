@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { CONFIG_DEFAULTS, materialise, updateConfig, validate } from '../src/lib/config.ts';
 import { createMemoryStore } from '../src/store/memory.ts';
 
@@ -116,5 +116,30 @@ describe('config materialisation', () => {
     ]);
     expect(config.memberChannelCapacity).toBe(8);
     expect(config.venueMaximum).toBe(CONFIG_DEFAULTS.venueMaximum);
+  });
+});
+
+describe('email provider selection', () => {
+  const original = { ...process.env };
+  afterEach(() => {
+    process.env = { ...original };
+  });
+
+  it('defaults to console, which delivers nothing', async () => {
+    delete process.env.EMAIL_PROVIDER;
+    const { createProvider } = await import('../src/lib/email.ts');
+    expect(createProvider().name).toBe('console');
+  });
+
+  it('selects SMTP, so a mailbox the business already owns can be used', async () => {
+    process.env.EMAIL_PROVIDER = 'smtp';
+    const { createProvider } = await import('../src/lib/email.ts');
+    expect(createProvider().name).toBe('smtp');
+  });
+
+  it('refuses an unknown provider rather than silently sending nothing', async () => {
+    process.env.EMAIL_PROVIDER = 'carrier-pigeon';
+    const { createProvider } = await import('../src/lib/email.ts');
+    expect(() => createProvider()).toThrow(/Unsupported EMAIL_PROVIDER/);
   });
 });
