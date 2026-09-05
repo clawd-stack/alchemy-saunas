@@ -51,8 +51,19 @@ export async function ensureBootstrapAdmin(store: Store, email: string, venueId:
     console.log(`[member-booking] bootstrap: reinstated the admin staff row for ${wanted}`);
   }
 
+  // The flag counts as much as the hash. A credential written by an earlier
+  // deploy carries must_change, and checking only the password left that
+  // stuck on: correct password, so nothing to do, so the prompt came back on
+  // every sign-in forever. What the environment describes is a standing
+  // password that does not want changing, and both halves say so.
   const existing = await store.credentials.get(wanted);
-  if (existing?.active && (await verifyPassword(password, existing.passwordHash))) return;
+  if (
+    existing?.active &&
+    !existing.mustChange &&
+    (await verifyPassword(password, existing.passwordHash))
+  ) {
+    return;
+  }
 
   await store.credentials.setPassword({
     email: wanted,

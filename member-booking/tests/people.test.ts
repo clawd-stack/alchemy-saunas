@@ -235,6 +235,26 @@ describe('bootstrap admin from the environment', () => {
     expect(body.mustChangePassword).toBe(false);
   });
 
+  it('clears a must-change flag left by an earlier deploy', async () => {
+    // The exact production state: the password was already right, but the row
+    // was written when the bootstrap still set must_change. Checking only the
+    // password meant nothing to do, so the prompt came back on every sign-in
+    // forever.
+    await store.credentials.setPassword({
+      email: 'boot@alchemysaunas.com.au',
+      passwordHash: await hashPassword('a-long-bootstrap-password'),
+      mustChange: true,
+    });
+
+    process.env.ADMIN_BOOTSTRAP_EMAIL = 'boot@alchemysaunas.com.au';
+    process.env.ADMIN_BOOTSTRAP_PASSWORD = 'a-long-bootstrap-password';
+
+    const body = await (await loginHandler(login('boot@alchemysaunas.com.au', 'a-long-bootstrap-password'))).json();
+    expect(body.mustChangePassword).toBe(false);
+    // And it stays cleared rather than being rewritten on every attempt.
+    expect((await store.credentials.get('boot@alchemysaunas.com.au'))?.mustChange).toBe(false);
+  });
+
   it('takes over a credential already sitting on the address', async () => {
     // The state a database with history is in, and the one that made the
     // create-once version a permanent no-op: a row already there, from a
