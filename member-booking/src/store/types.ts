@@ -149,6 +149,17 @@ export interface MemberRecord {
   syncedAt: string;
 }
 
+export interface CredentialRecord {
+  email: string;
+  passwordHash: string;
+  /** True while the password in use was issued by a manager rather than chosen. */
+  mustChange: boolean;
+  active: boolean;
+  lastLoginAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface StaffRecord {
   staffId: string;
   email: string;
@@ -258,8 +269,6 @@ export interface Store {
     lastSyncAt(): Promise<string | null>;
   };
   auth: {
-    createToken(input: { tokenHash: string; email: string; memberId: string; expiresAt: Date; ip?: string | null }): Promise<void>;
-    consumeToken(tokenHash: string): Promise<{ email: string; memberId: string } | null>;
     /** Returns true when the caller is within the allowance. */
     throttle(bucketKey: string, limit: number, windowMs: number): Promise<boolean>;
     getStaffByEmail(email: string): Promise<StaffRecord | null>;
@@ -275,6 +284,17 @@ export interface Store {
     }): Promise<StaffRecord>;
     /** Deactivates rather than deletes, so audit trails keep resolving. */
     setStaffActive(staffId: string, active: boolean): Promise<StaffRecord | null>;
+  };
+  credentials: {
+    get(email: string): Promise<CredentialRecord | null>;
+    /** Creates, or replaces the password on an existing address. */
+    setPassword(input: { email: string; passwordHash: string; mustChange: boolean }): Promise<CredentialRecord>;
+    /** Rewrites only the hash, for a silent re-hash at stronger cost parameters. */
+    updateHash(email: string, passwordHash: string): Promise<void>;
+    recordLogin(email: string): Promise<void>;
+    setActive(email: string, active: boolean): Promise<CredentialRecord | null>;
+    list(): Promise<CredentialRecord[]>;
+    remove(email: string): Promise<boolean>;
   };
   audit: {
     listForSession(sessionId: string, limit?: number): Promise<AuditRow[]>;

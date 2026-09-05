@@ -1,4 +1,5 @@
 import { api, el, money, notice } from '/api.js';
+import { mountSignIn } from '/signin.js';
 
 /**
  * Member booking front end.
@@ -46,28 +47,13 @@ function dayKey(iso) {
 /* Sign in                                                           */
 /* ---------------------------------------------------------------- */
 
-const signinStatus = new URLSearchParams(location.search).get('signin');
-if (signinStatus === 'expired') {
-  notice(messages, 'warn', 'That sign-in link has expired or was already used. Please request a new one.');
-} else if (signinStatus === 'inactive') {
-  notice(messages, 'warn', "We couldn't find an active Alchemy membership for that email. If you think this is wrong, contact the venue.");
-}
-
-document.getElementById('signin-form').addEventListener('submit', async (event) => {
-  event.preventDefault();
-  const button = document.getElementById('signin-button');
-  const email = document.getElementById('email').value.trim();
-  button.disabled = true;
-  button.textContent = 'Sending…';
-  try {
-    const result = await api.post('/api/auth/request', { email, audience: 'booking' });
-    notice(messages, 'good', result.message);
-  } catch (error) {
-    notice(messages, 'bad', error.message);
-  } finally {
-    button.disabled = false;
-    button.textContent = 'Send my sign-in link';
-  }
+mountSignIn({
+  formId: 'signin-form',
+  buttonId: 'signin-button',
+  emailId: 'email',
+  passwordId: 'password',
+  messages,
+  onSignedIn: loadSessions,
 });
 
 document.getElementById('signout').addEventListener('click', async () => {

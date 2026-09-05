@@ -13,6 +13,7 @@ import type {
   MemberRecord,
   OutboxEntry,
   PaymentStatus,
+  CredentialRecord,
   StaffRecord,
   Store,
   WaiverRecord,
@@ -120,6 +121,18 @@ function mapMember(row: any): MemberRecord {
     status: row.status,
     homeVenueId: row.home_venue_id ?? null,
     syncedAt: iso(row.synced_at),
+  };
+}
+
+function mapCredential(row: any): CredentialRecord {
+  return {
+    email: row.email,
+    passwordHash: row.password_hash,
+    mustChange: row.must_change,
+    active: row.active,
+    lastLoginAt: isoOrNull(row.last_login_at),
+    createdAt: iso(row.created_at),
+    updatedAt: iso(row.updated_at),
   };
 }
 
@@ -507,25 +520,6 @@ export function createPgStore(connectionString?: string): Store {
     },
 
     auth: {
-      async createToken({ tokenHash, email, memberId, expiresAt, ip }): Promise<void> {
-        await sql()`
-          insert into auth_tokens (token_hash, email, member_id, expires_at, created_ip)
-          values (${tokenHash}, ${email}, ${memberId}, ${expiresAt}, ${ip ?? null}::inet)
-        `;
-      },
-      async consumeToken(tokenHash: string): Promise<{ email: string; memberId: string } | null> {
-        // Single statement: the WHERE clause is the guard, so a replayed link
-        // cannot be consumed twice even under concurrent requests.
-        const [row]: any[] = await sql()`
-          update auth_tokens
-             set consumed_at = now()
-           where token_hash = ${tokenHash}
-             and consumed_at is null
-             and expires_at > now()
-          returning email, member_id
-        `;
-        return row ? { email: row.email, memberId: row.member_id } : null;
-      },
       async throttle(bucketKey: string, limit: number, windowMs: number): Promise<boolean> {
         const windowStart = new Date(Date.now() - windowMs);
         const [row]: any[] = await sql()`
@@ -575,6 +569,62 @@ export function createPgStore(connectionString?: string): Store {
           update staff_users set active = ${active} where staff_id = ${staffId}::uuid returning *
         `;
         return row ? mapStaff(row) : null;
+      },
+    },
+
+    credentials: {
+      async get(email: string): Promise<CredentialRecord | null> {
+        const [row]: any[] = await sql()`
+          select * from user_credentials where email = ${email.toLowerCase()}
+        `;
+        return row ? mapCredential(row) : null;
+      },
+      async setPassword({ email, passwordHash, mustChange }): Promise<CredentialRecord> {
+        const [row]: any[] = await sql()`
+          insert into user_credentials (email, password_hash, must_change, active)
+          values (${email.toLowerCase()}, ${passwordHash}, ${mustChange}, true)
+          on conflict (email) do update
+            set password_hash = excluded.password_hash,
+                must_change = excluded.must_change,
+                -- A reset is also how a suspended account is brought back.
+                active = true,
+                updated_at = now()
+          returning *
+        `;
+        return mapCredential(row);
+      },
+      async updateHash(email: string, passwordHash: string): Promise<void> {
+        await sql()`
+          update user_credentials
+             set password_hash = ${passwordHash}, updated_at = now()
+           where email = ${email.toLowerCase()}
+        `;
+      },
+      async recordLogin(email: string): Promise<void> {
+        await sql()`
+          update user_credentials set last_login_at = now() where email = ${email.toLowerCase()}
+        `;
+      },
+      async setActive(email: string, active: boolean): Promise<CredentialRecord | null> {
+        const [row]: any[] = await sql()`
+          update user_credentials
+             set active = ${active}, updated_at = now()
+           where email = ${email.toLowerCase()}
+          returning *
+        `;
+        return row ? mapCredential(row) : null;
+      },
+      async list(): Promise<CredentialRecord[]> {
+        const rows: any[] = await sql()`
+          select * from user_credentials order by active desc, email
+        `;
+        return rows.map(mapCredential);
+      },
+      async remove(email: string): Promise<boolean> {
+        const rows: any[] = await sql()`
+          delete from user_credentials where email = ${email.toLowerCase()} returning email
+        `;
+        return rows.length > 0;
       },
     },
 

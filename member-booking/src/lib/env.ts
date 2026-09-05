@@ -87,28 +87,6 @@ export const env = {
       .map((s) => s.trim())
       .filter(Boolean);
   },
-  /**
-   * One-time break-glass credential for the first admin sign-in.
-   *
-   * Every other way into the admin screen goes through an emailed link, which
-   * is circular when the thing being set up is email itself: nobody can sign
-   * in to configure the provider that would let them sign in. This is the way
-   * through that, and nothing else. Unset, the endpoint that reads it refuses
-   * outright, so the normal state of a deployment is that it does not exist.
-   * Remove it once email is verified.
-   */
-  get adminBootstrapToken(): string {
-    return optional('ADMIN_BOOTSTRAP_TOKEN');
-  },
-  /**
-   * Which admin the bootstrap token signs in as. Optional: with exactly one
-   * active admin account that account is unambiguous and is used. With
-   * several, the token alone does not say which, and the endpoint refuses
-   * rather than picking.
-   */
-  get adminBootstrapEmail(): string {
-    return optional('ADMIN_BOOTSTRAP_EMAIL');
-  },
   get defaultVenueId(): string {
     return optional('DEFAULT_VENUE_ID', 'east-fremantle');
   },

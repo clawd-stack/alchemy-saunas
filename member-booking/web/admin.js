@@ -1,4 +1,5 @@
 import { api, el, notice } from '/api.js';
+import { mountSignIn, showPasswordChange } from '/signin.js';
 
 /**
  * Configuration screen, PRD 5.7.
@@ -39,43 +40,13 @@ const FIELDS = [
 
 let current = null;
 
-/**
- * Break-glass sign-in.
- *
- * Reached as /admin.html?bootstrap=<token>, which is the only way in before an
- * email provider is configured: the ordinary path emails a link, and email is
- * the thing being set up. The token is exchanged immediately and stripped from
- * the address bar, so it does not sit in the URL to be screenshotted, shared
- * or restored by the browser on a back navigation.
- */
-async function bootstrapFromUrl() {
-  const params = new URLSearchParams(window.location.search);
-  const token = params.get('bootstrap');
-  if (!token) return;
-
-  params.delete('bootstrap');
-  const rest = params.toString();
-  window.history.replaceState({}, '', window.location.pathname + (rest ? `?${rest}` : ''));
-
-  try {
-    const result = await api.post('/api/admin/bootstrap', { token });
-    notice(messages, result.ok ? 'good' : 'bad', result.message);
-  } catch (error) {
-    notice(messages, 'bad', error.message);
-  }
-}
-
-document.getElementById('signin-form').addEventListener('submit', async (event) => {
-  event.preventDefault();
-  try {
-    const result = await api.post('/api/auth/request', {
-      email: document.getElementById('email').value.trim(),
-      audience: 'admin',
-    });
-    notice(messages, 'good', result.message);
-  } catch (error) {
-    notice(messages, 'bad', error.message);
-  }
+mountSignIn({
+  formId: 'signin-form',
+  buttonId: 'signin-button',
+  emailId: 'email',
+  passwordId: 'password',
+  messages,
+  onSignedIn: load,
 });
 
 async function load() {
@@ -90,9 +61,11 @@ async function load() {
       warningsEl.append(el('div', { class: 'notice notice--warn', text: warning }));
     }
 
+    renderOwnAccount();
     renderEmailCheck();
     renderSummary(data.config, data.entries);
     renderForm(data.config, data.entries);
+    loadCredentials();
     loadStaff();
     loadAudit();
   } catch (error) {
@@ -103,6 +76,32 @@ async function load() {
     }
     notice(messages, 'bad', error.message);
   }
+}
+
+/** Changing your own password, separate from issuing anybody else's. */
+function renderOwnAccount() {
+  let host = document.getElementById('own-account');
+  if (!host) {
+    host = el('div', { class: 'card', id: 'own-account' });
+    warningsEl.after(host);
+  }
+  host.innerHTML = '';
+
+  const button = el('button', { class: 'btn-quiet btn-small', type: 'button', text: 'Change my password' });
+  button.addEventListener('click', () => showPasswordChange({ messages, onDone: load }));
+
+  const out = el('button', { class: 'btn-quiet btn-small', type: 'button', text: 'Sign out' });
+  out.addEventListener('click', async () => {
+    await api.post('/api/auth/session', {});
+    location.reload();
+  });
+
+  host.append(
+    el('div', { class: 'row row--between' }, [
+      el('strong', { text: 'Your account' }),
+      el('div', { class: 'row', style: 'gap:6px' }, [button, out]),
+    ]),
+  );
 }
 
 /**
@@ -354,6 +353,168 @@ async function loadAudit() {
 }
 
 /**
+ * Sign-in accounts.
+ *
+ * The one place a password is ever visible, and only in the instant it is
+ * created. Everything else here talks about accounts, never about passwords,
+ * because there is nothing to show: they are stored as scrypt hashes and the
+ * API has no way to return one. Losing a password means issuing a new one.
+ */
+async function loadCredentials() {
+  const card = document.getElementById('credentials');
+  try {
+    const data = await api.get('/api/admin/credentials');
+    card.innerHTML = '';
+
+    const issued = data.accounts.filter((a) => a.active && a.mustChange).length;
+    if (issued > 0) {
+      card.append(
+        el('div', {
+          class: 'notice notice--warn',
+          text: `${issued} account${issued === 1 ? ' is' : 's are'} still on a password issued from this screen. They are replaced automatically the first time each person signs in.`,
+        }),
+      );
+    }
+
+    const body = el('tbody');
+    for (const account of data.accounts) {
+      body.append(
+        el('tr', { class: account.active ? '' : 'muted' }, [
+          el('td', {}, [
+            el('strong', { text: account.email }),
+            el('div', { class: 'hint', text: account.role ? `${account.kind}, ${account.role}` : account.kind }),
+          ]),
+          el('td', {
+            text: account.active ? (account.mustChange ? 'Issued, not yet changed' : 'Active') : 'Suspended',
+          }),
+          el('td', {
+            text: account.lastLoginAt ? new Date(account.lastLoginAt).toLocaleDateString('en-AU') : 'Never signed in',
+          }),
+          el('td', {}, accountActions(account)),
+        ]),
+      );
+    }
+
+    card.append(
+      el('div', { class: 'scroll-x' }, [
+        el('table', {}, [
+          el('thead', {}, [
+            el('tr', {}, [
+              el('th', { text: 'Account' }),
+              el('th', { text: 'Status' }),
+              el('th', { text: 'Last sign-in' }),
+              el('th', { text: '' }),
+            ]),
+          ]),
+          body,
+        ]),
+      ]),
+      credentialForm(),
+    );
+  } catch (error) {
+    card.innerHTML = '';
+    card.append(
+      el('p', { class: 'muted', text: error.code === 'FORBIDDEN' ? 'Only an admin can manage sign-in accounts.' : error.message }),
+    );
+  }
+}
+
+function accountActions(account) {
+  const reset = el('button', { class: 'btn-quiet btn-small', type: 'button', text: 'Reset password' });
+  reset.addEventListener('click', () => issueCredential(account.email, reset));
+
+  const toggle = el('button', {
+    class: 'btn-quiet btn-small',
+    type: 'button',
+    text: account.active ? 'Suspend' : 'Restore',
+  });
+  toggle.addEventListener('click', async () => {
+    toggle.disabled = true;
+    try {
+      const result = await api.patch('/api/admin/credentials', { email: account.email, active: !account.active });
+      notice(messages, 'good', result.message);
+      await loadCredentials();
+    } catch (error) {
+      notice(messages, 'bad', error.message);
+      toggle.disabled = false;
+    }
+  });
+
+  return el('div', { class: 'row', style: 'gap:6px' }, [reset, toggle]);
+}
+
+function credentialForm() {
+  const email = el('input', { type: 'email', required: 'required', placeholder: 'member@example.com', autocomplete: 'off' });
+
+  const form = el('form', { class: 'stack', style: 'margin-top:16px' }, [
+    el('h3', { style: 'margin:0', text: 'Issue a password' }),
+    el('p', {
+      class: 'hint',
+      style: 'margin:0',
+      text: 'Creates the account if it does not exist, or resets an existing one. The password is generated, shown once, and cannot be retrieved afterwards.',
+    }),
+    el('div', {}, [el('label', { text: 'Email' }), email]),
+    el('button', { class: 'btn-primary', type: 'submit', text: 'Generate password' }),
+  ]);
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const address = email.value.trim();
+    email.value = '';
+    await issueCredential(address, form.querySelector('button'));
+  });
+
+  return form;
+}
+
+/**
+ * Issues a password and shows it once.
+ *
+ * Order matters here. Refreshing the list rebuilds this whole card, so the
+ * panel carrying the password has to be attached after that, to the new card,
+ * or it lands on a detached node and the one chance to read the password is
+ * gone. Rendered as a selectable input rather than plain text, because it has
+ * to be copied into whatever the admin is sending and a value that can only be
+ * read off the screen gets transcribed wrongly.
+ */
+async function issueCredential(email, button) {
+  if (!email) return notice(messages, 'warn', 'Enter an email address.');
+  if (button) button.disabled = true;
+
+  try {
+    const created = await api.post('/api/admin/credentials', { email });
+
+    // Rebuilds #credentials, so nothing captured before this point survives.
+    await loadCredentials();
+
+    const panel = el('div', { class: 'notice notice--good', style: 'margin-top:12px' }, [
+      el('p', { style: 'margin:0 0 8px', text: created.message }),
+      el('p', { class: 'hint', style: 'margin:0 0 8px', text: `This address signs in as: ${created.resolvesTo}` }),
+    ]);
+
+    if (created.password) {
+      panel.append(
+        el('input', {
+          type: 'text',
+          readonly: 'readonly',
+          value: created.password,
+          style: 'font-family:ui-monospace,monospace;font-size:18px;letter-spacing:1px',
+          onclick: (event) => event.target.select(),
+        }),
+        el('p', { class: 'hint', style: 'margin:8px 0 0', text: 'Tap to select, then copy. Leaving this page loses it for good.' }),
+      );
+    }
+
+    document.getElementById('credentials').append(panel);
+    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  } catch (error) {
+    notice(messages, 'bad', error.message);
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+/**
  * Staff accounts.
  *
  * The seeded addresses are placeholders, and door staff change faster than
@@ -456,5 +617,4 @@ function staffForm() {
   return form;
 }
 
-await bootstrapFromUrl();
 load();

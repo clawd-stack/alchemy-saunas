@@ -7,12 +7,12 @@ in a chat transcript.
 
 | | Detail |
 |---|---|
-| **Code** | Merged to `main`. CI green: 149 tests, 22 of them against a real Postgres. |
+| **Code** | Merged to `main`. CI green: 155 tests, 22 of them against a real Postgres. |
 | **Netlify site** | `alchemy-booking`, team Ragan. Site id `cdfc3250-6203-4e41-bb89-79c171e270f9`. URL will be `https://alchemy-booking.netlify.app`. |
 | **Database** | Nothing to create. `@netlify/database` is a dependency, so Netlify DB provisions Postgres on the first build and applies `netlify/database/migrations/` in order before publishing. A failed migration blocks the publish. |
 | **Environment variables** | `SESSION_SECRET` (generated), `PUBLIC_BASE_URL`, `ALLOWED_ORIGINS`, `DEFAULT_VENUE_ID`, `EMAIL_PROVIDER=console` are set on the site and verified by reading them back. They are stored as ordinary variables, not secret-flagged: variable scoping and the secret flag are paid-plan features on Netlify, and requesting them makes the write silently do nothing. Mark `SESSION_SECRET` secret in the UI if the plan is ever upgraded. |
 | **Build settings** | In `netlify.toml` at the **repository root**: base `member-booking`, build `npm run typecheck`, publish `web`, functions `netlify/functions`. Leave every UI build field empty so this file stays authoritative. |
-| **Admin access** | `clawd@ragan.com.au` is seeded as an admin. Reached without email via `ADMIN_BOOTSTRAP_TOKEN` (section 2), after which staff accounts are managed from the admin screen rather than by migration. |
+| **Admin access** | `clawd@ragan.com.au` signs in with an email and password shipped in migration 005, and must change it on first use. Every other account is issued from the admin screen. |
 
 ## Migrations are immutable once applied
 
@@ -54,81 +54,75 @@ On app.netlify.com, phone browser is fine:
    directory. `netlify.toml` at the repository root declares all of them.
 5. Deploy.
 
-The first build provisions the database and applies all three migrations.
+The first build provisions the database and applies all five migrations.
 
-### 2. Getting into the admin screen the first time
+### 2. Signing in
 
-Every route into the admin screen is an emailed link, and the thing that needs
-configuring is email. That is a deadlock, and the staff-issued links endpoint
-does not break it, because it is itself staff-authenticated. Somebody has to
-get in first.
+Email and password. There are no sign-in links and nothing to email: a manager
+issues a password from the admin screen and passes it on however they like.
 
-`ADMIN_BOOTSTRAP_TOKEN` is that first way in, and nothing else. Open:
+**The first admin is already there.** `clawd@ragan.com.au` ships with a password
+set in migration 005 (the migration carries a scrypt hash, never the password
+itself). Sign in at `/admin.html`. You will be required to choose your own
+password immediately, because the one you were given passed through a chat
+message to get to you and is therefore a bootstrap credential, not a lasting one.
 
-```
-https://alchemy-booking.netlify.app/admin.html?bootstrap=<the token>
-```
+How passwords are handled:
 
-The page exchanges it, signs you in for 12 hours, and strips the token from
-the address bar so it is not left in browser history or a screenshot.
+- scrypt, N=2^15, r=8, p=1, per-password salt, from `node:crypto`. The cost
+  parameters live inside each stored hash, so they can be raised later without
+  invalidating anybody: a password proven correct at an older cost is rewritten
+  at the new one on the next sign-in.
+- Twelve characters minimum. Generated ones are 20 characters from an alphabet
+  with no `0/O` or `1/l/I`, so a password that gets transcribed by hand once
+  does not turn into a support call.
+- A generated password is shown **once**, in the response that creates it. There
+  is no endpoint that can return it again, because a password this screen could
+  redisplay is a password a database dump could. Lost means reset, never
+  recovered.
+- Sign-in refuses identically for every reason: unknown address, wrong password,
+  suspended account, lapsed membership. Unknown addresses are checked against a
+  dummy hash so they cost the same time as real ones. Both exist so the login
+  form cannot be used to ask who holds a membership.
+- Eight attempts per address and thirty-two per IP, per fifteen minutes.
 
-What it can and cannot do:
+A password is identity, never entitlement. Membership is still verified against
+Hapana at sign-in and again at every booking, so a valid password for a lapsed
+membership gets exactly as far as no password at all.
 
-- It exists only while the environment variable is set. Unset, which is the
-  normal state of a deployment, the endpoint refuses without reading the
-  request.
-- It signs in as an **existing** admin account. It cannot create one, promote
-  one, or reach a deactivated account or a door account.
-- The production database has two active admins (`clawd@ragan.com.au` and
-  `james@alchemysaunas.com.au`), so `ADMIN_BOOTSTRAP_EMAIL` names which one.
-  Without it the endpoint refuses rather than picking.
-- Five attempts per IP per fifteen minutes, compared in constant time. Every
-  attempt is logged.
+### 3. Accounts
 
-**Delete `ADMIN_BOOTSTRAP_TOKEN` once the email check passes.** `/api/health`
-fails the `bootstrap_token_removed` check while it is still set, so it will not
-be forgotten quietly.
+Two lists on the admin screen, and they answer different questions.
 
-### 3. Staff accounts
+**Sign-in accounts** is who can sign in. Issue a password for any address:
+members and staff alike. The screen tells you who the address will resolve to
+before you send anything, which matters because sign-in itself refuses
+identically for every reason, so a typo would otherwise produce a perfectly
+valid password for nobody. Accounts can be suspended, restored, reset, deleted.
 
-The admin screen now manages them, so changing who has access no longer needs a
-migration and a deploy. The seeded addresses (`james@alchemysaunas.com.au`,
-`door.eastfremantle@alchemysaunas.com.au`) were placeholders; replace them with
+**Staff accounts** is what someone can see once in: **door** gets the door list,
+**manager** adds reconciliation, **admin** adds configuration and both of these
+screens. A member needs no staff account at all.
+
+Both are admin-only. A manager who could edit either could make themselves an
+admin. An admin cannot suspend, delete or demote themselves, and the last active
+admin cannot be removed.
+
+Suspending stops the next sign-in but does not kill a session already open:
+sessions are signed cookies with a twelve-hour life and no server-side lookup, so
+an open one runs out within twelve hours. Worth knowing before relying on it to
+cut somebody off mid-shift.
+
+The seeded addresses `james@alchemysaunas.com.au` and
+`door.eastfremantle@alchemysaunas.com.au` are placeholders. Replace them with
 real ones and deactivate what is left.
 
-Deactivating removes sign-in immediately but does not kill a session already
-open: staff sessions are signed cookies with a 12-hour life and no server-side
-lookup, so an open one runs out within 12 hours. That is the right trade for a
-door list, and worth knowing before relying on it to cut someone off mid-shift.
+### 4. Email provider (optional)
 
-Roles: **door** sees the door list, **manager** adds reconciliation, **admin**
-adds configuration and this screen. Only an admin can edit staff, because a
-manager who could would be able to make themselves an admin. An admin cannot
-deactivate or demote themselves, and the last active admin cannot be removed.
-
-### 4. Email provider (3 minutes, phone is fine)
-
-**The one item that genuinely needs a credential I cannot create.** Until it
-is set, `EMAIL_PROVIDER=console` writes sign-in links, waivers and
-cancellation notices to the Netlify function log and delivers them to nobody.
-
-That is enough to test with: open the function log in the Netlify app, find
-the sign-in link, tap it. It is not enough to open the channel to members,
-because members cannot sign in and guests never receive a waiver.
-
-**You can run the pilot before any of this is set.** Staff can hand out both
-kinds of link in person from the door list:
-
-- **Sign a member in**: enter their membership email, get a one-time link, let
-  them open it on their own phone. Their membership is still checked against
-  Hapana first, so a paused member gets nothing. Once opened they stay signed
-  in for 30 days and can book from home afterwards.
-- **Sign waiver**: on any unsigned guest, hand the tablet over and they sign on
-  the spot. This is how guests without email are handled permanently, not only
-  while email is unconfigured.
-
-That covers everything except the automatic reminders. Set up email when
-convenient rather than before go-live.
+**Sign-in no longer depends on this.** Email now only carries guest waivers,
+booking confirmations and cancellation notices. Nobody is locked out while
+`EMAIL_PROVIDER=console`; guests can sign a waiver on a tablet at the door, and
+staff can open one for them from the door list.
 
 **Recommended: send through Google Workspace.** Alchemy already has it, so
 there is no new vendor, no monthly cost, no new domain reputation to build,
@@ -197,8 +191,10 @@ already allows framing from the Alchemy domains and blocks everyone else.
 ## Checking it worked
 
 Once the site has built, `https://alchemy-booking.netlify.app/api/health`
-reports every one of the above. `readyForMembers` stays false until the email
-provider and Hapana credentials are set.
+reports every one of the above, including `admin_sign_in`, which fails if no
+active admin has a password and nobody can reach the configuration screen.
+`readyForMembers` stays false until the email provider and Hapana credentials
+are set.
 
 ## Pages, once deployed
 
@@ -208,6 +204,6 @@ landing page.
 | Page | Who |
 |---|---|
 | `/booking.html` | Members. This is what goes in Webflow. |
-| `/doorlist.html` | Door staff, sign in with a staff email. |
+| `/doorlist.html` | Door staff, email and password. |
 | `/admin.html` | Manager and admin, configuration and the capacity audit. |
 | `/waiver.html` | Guests, reached from their emailed link. |

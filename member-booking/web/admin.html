@@ -21,7 +21,11 @@
           <label for="email">Email</label>
           <input id="email" type="email" autocomplete="email" required>
         </div>
-        <button class="btn-primary" type="submit">Send sign-in link</button>
+        <div>
+          <label for="password">Password</label>
+          <input id="password" type="password" autocomplete="current-password" required>
+        </div>
+        <button class="btn-primary" type="submit" id="signin-button">Sign in</button>
       </form>
     </section>
 
@@ -29,6 +33,11 @@
       <div id="warnings"></div>
       <div id="capacity-summary" class="card"></div>
       <form id="config-form" class="card stack"></form>
+      <div class="card">
+        <h2 style="margin-top:0">Sign-in accounts</h2>
+        <p class="muted" style="margin-top:0">Who can sign in, and with what. Issue a password here and pass it on however you like; a generated one is shown once and never again.</p>
+        <div id="credentials"></div>
+      </div>
       <div class="card">
         <h2 style="margin-top:0">Staff accounts</h2>
         <p class="muted" style="margin-top:0">Who can open the door list and this screen. Deactivating takes effect on their next sign-in; a session already open ends within 12 hours.</p>
