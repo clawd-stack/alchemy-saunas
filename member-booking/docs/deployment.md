@@ -97,6 +97,11 @@ far above anything one venue generates.
    - `EMAIL_FROM` = `Alchemy Saunas <that same address>`
    - `SMTP_HOST` and `SMTP_PORT` already default to `smtp.gmail.com` and `465`
 4. Redeploy.
+5. Open `/admin.html`, sign in, and press **Send test email**. It sends a real
+   message to your own address and reports what the provider said, including
+   the provider's own error text if it refused. That is the fastest way to
+   tell a working setup from a silently broken one: everywhere else a send
+   failure is deliberately swallowed so it cannot take a booking down with it.
 
 **Alternative: a transactional vendor.** Resend or Postmark, if you would
 rather keep booking mail off the Workspace account or want delivery analytics.

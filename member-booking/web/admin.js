@@ -64,6 +64,7 @@ async function load() {
       warningsEl.append(el('div', { class: 'notice notice--warn', text: warning }));
     }
 
+    renderEmailCheck();
     renderSummary(data.config, data.entries);
     renderForm(data.config, data.entries);
     loadAudit();
@@ -75,6 +76,51 @@ async function load() {
     }
     notice(messages, 'bad', error.message);
   }
+}
+
+/**
+ * One-tap verification that email actually works. Everywhere else a send
+ * failure is swallowed so it cannot take a booking down with it, which is
+ * right in production and unhelpful during setup: this is the one place that
+ * says plainly whether the credentials are good.
+ */
+function renderEmailCheck() {
+  let host = document.getElementById('email-check');
+  if (!host) {
+    host = el('div', { class: 'card', id: 'email-check' });
+    warningsEl.after(host);
+  }
+  host.innerHTML = '';
+  host.append(
+    el('div', { class: 'row row--between' }, [
+      el('div', {}, [
+        el('strong', { text: 'Email' }),
+        el('p', { class: 'hint', style: 'margin:4px 0 0', text: 'Sends a real message to your own address and reports what the provider said.' }),
+      ]),
+      el('button', { class: 'btn-quiet btn-small', id: 'send-test-email', type: 'button', text: 'Send test email' }),
+    ]),
+    el('div', { id: 'email-check-result' }),
+  );
+
+  document.getElementById('send-test-email').addEventListener('click', async (event) => {
+    const button = event.target;
+    const target = document.getElementById('email-check-result');
+    button.disabled = true;
+    button.textContent = 'Sending…';
+    target.innerHTML = '';
+    try {
+      const result = await api.post('/api/admin/test-email', {});
+      notice(target, result.ok ? 'good' : 'warn', result.message);
+      if (result.error) {
+        target.append(el('p', { class: 'hint', style: 'margin-top:8px', text: `Provider said: ${result.error}` }));
+      }
+    } catch (error) {
+      notice(target, 'bad', error.message);
+    } finally {
+      button.disabled = false;
+      button.textContent = 'Send test email';
+    }
+  });
 }
 
 function renderSummary(config, entries) {
