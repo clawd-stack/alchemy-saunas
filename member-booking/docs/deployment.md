@@ -10,7 +10,7 @@ in a chat transcript.
 | **Code** | Merged to `main` (PR #1). CI green: 112 tests, 19 against a real Postgres. |
 | **Netlify site** | `alchemy-member-booking`, team Ragan. Site id `cdfc3250-6203-4e41-bb89-79c171e270f9`. URL will be `https://alchemy-member-booking.netlify.app`. |
 | **Database** | Nothing to create. `@netlify/database` is a dependency, so Netlify DB provisions Postgres on the first build and applies `netlify/database/migrations/` in order before publishing. A failed migration blocks the publish. |
-| **Environment variables** | `SESSION_SECRET` (generated, stored as a secret), `PUBLIC_BASE_URL`, `ALLOWED_ORIGINS`, `DEFAULT_VENUE_ID`, `EMAIL_PROVIDER=console` are all set on the site. |
+| **Environment variables** | `SESSION_SECRET` (generated), `PUBLIC_BASE_URL`, `ALLOWED_ORIGINS`, `DEFAULT_VENUE_ID`, `EMAIL_PROVIDER=console` are set on the site and verified by reading them back. They are stored as ordinary variables, not secret-flagged: variable scoping and the secret flag are paid-plan features on Netlify, and requesting them makes the write silently do nothing. Mark `SESSION_SECRET` secret in the UI if the plan is ever upgraded. |
 | **Build settings** | Already in `netlify.toml`: base `member-booking`, build `npm run typecheck`, publish `web`, functions `netlify/functions`. Nothing to type in the UI. |
 | **Admin access** | `clawd@ragan.com.au` is seeded as an admin, so there is a working way into the config and door list screens on first deploy. |
 
