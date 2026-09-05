@@ -16,6 +16,7 @@ import adminConfigHandler from '../netlify/functions/admin-config.ts';
 import reconciliationHandler from '../netlify/functions/admin-reconciliation.ts';
 import healthHandler from '../netlify/functions/health.ts';
 import staffLinksHandler from '../netlify/functions/staff-links.ts';
+import testEmailHandler from '../netlify/functions/admin-test-email.ts';
 
 /**
  * The API layer as HTTP: status codes, cookies, and what a caller can and
@@ -432,5 +433,23 @@ describe('staff-issued links', () => {
       post('/api/staff/links', { action: 'guest-waiver', bookingId: created.booking.bookingId, guestId: 'not-a-guest' }, staffCookie()),
     );
     expect(response.status).toBe(404);
+  });
+});
+
+describe('email configuration check', () => {
+  it('is closed to door staff', async () => {
+    expect((await testEmailHandler(post('/api/admin/test-email', {}, staffCookie('door')))).status).toBe(403);
+  });
+
+  it('requires authentication', async () => {
+    expect((await testEmailHandler(post('/api/admin/test-email', {}))).status).toBe(401);
+  });
+
+  it('reports plainly that nothing is delivered when no provider is configured', async () => {
+    const body = await (await testEmailHandler(post('/api/admin/test-email', {}, staffCookie('admin')))).json();
+    // Not an error: the endpoint answers the question rather than throwing.
+    expect(body.ok).toBe(false);
+    expect(body.provider).toBe('console');
+    expect(body.message).toContain('nothing is delivered');
   });
 });
