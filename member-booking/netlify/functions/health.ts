@@ -82,6 +82,31 @@ export default async (request: Request): Promise<Response> => {
           : `${adminLogins.length} admin sign-in${adminLogins.length === 1 ? '' : 's'}` +
             (unchanged > 0 ? `, ${unchanged} still on an issued password that should be changed` : ''),
     });
+
+    // Whether the bootstrap variables actually reached the function.
+    //
+    // Without this, a bootstrap that never ran and a mistyped password look
+    // identical from outside, because sign-in refuses identically for every
+    // reason by design. That is the right behaviour for sign-in and a dead end
+    // for whoever is trying to get in for the first time, so the one fact that
+    // separates them is reported here instead.
+    //
+    // The address is deliberately not named: this endpoint is unauthenticated,
+    // and an admin address is a thing worth not handing out.
+    const bootstrapEmail = process.env.ADMIN_BOOTSTRAP_EMAIL?.trim().toLowerCase() ?? '';
+    const bootstrapSet = Boolean(bootstrapEmail && process.env.ADMIN_BOOTSTRAP_PASSWORD);
+    const bootstrapDone = bootstrapSet && accounts.some((a) => a.email === bootstrapEmail);
+    checks.push({
+      // Not a readiness gate either way: a site whose admins already have
+      // passwords does not need this set.
+      name: 'admin_bootstrap',
+      ok: true,
+      detail: !bootstrapSet
+        ? 'not configured: no bootstrap address and password in the environment'
+        : bootstrapDone
+          ? 'configured, and that address already has a password'
+          : 'configured, waiting for that address to sign in once to set its password',
+    });
   }
 
   if (context) {
