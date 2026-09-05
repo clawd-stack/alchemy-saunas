@@ -17,7 +17,7 @@ import { ACTIVE_MEMBER, PAUSED_MEMBER, VENUE_ID } from './helpers.ts';
 
 import loginHandler from '../netlify/functions/auth-login.ts';
 import passwordHandler from '../netlify/functions/auth-password.ts';
-import credentialsHandler from '../netlify/functions/admin-credentials.ts';
+import peopleHandler from '../netlify/functions/admin-people.ts';
 
 /**
  * Password sign-in.
@@ -266,7 +266,7 @@ describe('signing in with a password that still has to be changed', () => {
     // And the session it issued genuinely works, rather than waiting on the
     // password being changed first.
     const cookie = (response.headers.get('set-cookie') ?? '').split(';')[0];
-    expect((await credentialsHandler(get('/api/admin/credentials', cookie))).status).toBe(200);
+    expect((await peopleHandler(get('/api/admin/people', cookie))).status).toBe(200);
   });
 });
 
@@ -324,118 +324,5 @@ describe('POST /api/auth/password', () => {
 
     // The admin's password is untouched: the address came from the cookie.
     expect(await verifyPassword(GOOD_PASSWORD, (await store.credentials.get(ADMIN.email))!.passwordHash)).toBe(true);
-  });
-});
-
-describe('/api/admin/credentials', () => {
-  it('is closed to anyone but an admin', async () => {
-    expect((await credentialsHandler(get('/api/admin/credentials'))).status).toBe(401);
-    const manager = `${STAFF_COOKIE}=${issueStaffSession({
-      staffId: 's2',
-      email: 'manager@example.com',
-      displayName: 'Mo Manager',
-      role: 'manager',
-      venueIds: [VENUE_ID],
-    })}`;
-    expect((await credentialsHandler(get('/api/admin/credentials', manager))).status).toBe(403);
-  });
-
-  it('issues a generated password, returned exactly once', async () => {
-    const body = await (await credentialsHandler(
-      request('/api/admin/credentials', { email: ACTIVE_MEMBER.email }, adminCookie()),
-    )).json();
-
-    expect(body.password).toBeTruthy();
-    expect(body.resolvesTo).toContain('member');
-
-    // It works.
-    const login = await loginHandler(
-      request('/api/auth/login', { email: ACTIVE_MEMBER.email, password: body.password }),
-    );
-    expect(login.status).toBe(200);
-    expect((await login.json()).mustChangePassword).toBe(true);
-
-    // And it is not retrievable afterwards, from anywhere.
-    const list = await (await credentialsHandler(get('/api/admin/credentials', adminCookie()))).json();
-    const account = list.accounts.find((a: any) => a.email === ACTIVE_MEMBER.email);
-    expect(account).toBeTruthy();
-    expect(JSON.stringify(list)).not.toContain(body.password);
-    expect(JSON.stringify(list)).not.toContain('scrypt$');
-  });
-
-  it('accepts a supplied password, and still marks it must-change', async () => {
-    const body = await (await credentialsHandler(
-      request('/api/admin/credentials', { email: ACTIVE_MEMBER.email, password: 'a-supplied-password' }, adminCookie()),
-    )).json();
-    expect(body.password).toBeNull();
-    expect((await store.credentials.get(ACTIVE_MEMBER.email))?.mustChange).toBe(true);
-  });
-
-  it('rejects a supplied password that is too short', async () => {
-    const response = await credentialsHandler(
-      request('/api/admin/credentials', { email: ACTIVE_MEMBER.email, password: 'short' }, adminCookie()),
-    );
-    expect(response.status).toBe(400);
-  });
-
-  it('says plainly when an address will not resolve to anybody', async () => {
-    const body = await (await credentialsHandler(
-      request('/api/admin/credentials', { email: 'typo@example.com' }, adminCookie()),
-    )).json();
-    // Sign-in refuses identically for every reason, so the admin screen has to
-    // be the place that catches a typo.
-    expect(body.resolvesTo).toContain('nobody yet');
-  });
-
-  it('resets an existing account rather than creating a second one', async () => {
-    await credentialsHandler(request('/api/admin/credentials', { email: ACTIVE_MEMBER.email }, adminCookie()));
-    const second = await (await credentialsHandler(
-      request('/api/admin/credentials', { email: ACTIVE_MEMBER.email }, adminCookie()),
-    )).json();
-
-    expect((await store.credentials.list()).filter((c) => c.email === ACTIVE_MEMBER.email)).toHaveLength(1);
-    expect((await loginHandler(request('/api/auth/login', { email: ACTIVE_MEMBER.email, password: second.password }))).status).toBe(200);
-  });
-
-  it('suspends and restores sign-in', async () => {
-    await seedCredential(ACTIVE_MEMBER.email, GOOD_PASSWORD);
-
-    await credentialsHandler(request('/api/admin/credentials', { email: ACTIVE_MEMBER.email, active: false }, adminCookie(), 'PATCH'));
-    expect((await loginHandler(request('/api/auth/login', { email: ACTIVE_MEMBER.email, password: GOOD_PASSWORD }))).status).toBe(401);
-
-    await credentialsHandler(request('/api/admin/credentials', { email: ACTIVE_MEMBER.email, active: true }, adminCookie(), 'PATCH'));
-    expect((await loginHandler(request('/api/auth/login', { email: ACTIVE_MEMBER.email, password: GOOD_PASSWORD }))).status).toBe(200);
-  });
-
-  it('deletes an account', async () => {
-    await seedCredential(ACTIVE_MEMBER.email, GOOD_PASSWORD);
-    const response = await credentialsHandler(
-      request('/api/admin/credentials', { email: ACTIVE_MEMBER.email }, adminCookie(), 'DELETE'),
-    );
-    expect(response.status).toBe(200);
-    expect(await store.credentials.get(ACTIVE_MEMBER.email)).toBeNull();
-    expect((await credentialsHandler(request('/api/admin/credentials', { email: ACTIVE_MEMBER.email }, adminCookie(), 'DELETE'))).status).toBe(404);
-  });
-
-  it('refuses to let an admin lock themselves out', async () => {
-    await seedCredential(ADMIN.email, GOOD_PASSWORD);
-    expect(
-      (await credentialsHandler(request('/api/admin/credentials', { email: ADMIN.email, active: false }, adminCookie(), 'PATCH'))).status,
-    ).toBe(400);
-    expect(
-      (await credentialsHandler(request('/api/admin/credentials', { email: ADMIN.email }, adminCookie(), 'DELETE'))).status,
-    ).toBe(400);
-    expect((await store.credentials.get(ADMIN.email))?.active).toBe(true);
-  });
-
-  it('labels staff and members distinctly in the listing', async () => {
-    await seedCredential(ADMIN.email, GOOD_PASSWORD);
-    await seedCredential(ACTIVE_MEMBER.email, GOOD_PASSWORD);
-
-    const body = await (await credentialsHandler(get('/api/admin/credentials', adminCookie()))).json();
-    const byEmail = new Map(body.accounts.map((a: any) => [a.email, a]));
-    expect((byEmail.get(ADMIN.email) as any).kind).toBe('staff');
-    expect((byEmail.get(ADMIN.email) as any).role).toBe('admin');
-    expect((byEmail.get(ACTIVE_MEMBER.email) as any).kind).toBe('member');
   });
 });

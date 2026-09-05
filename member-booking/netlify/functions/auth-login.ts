@@ -8,6 +8,7 @@ import {
   withinRateLimit,
 } from '../../src/lib/auth.ts';
 import { DUMMY_HASH, hashPassword, needsRehash, readPassword, verifyPassword } from '../../src/lib/password.ts';
+import { ensureBootstrapAdmin } from '../../src/domain/bootstrap.ts';
 import { BookingError } from '../../src/lib/errors.ts';
 import {
   MEMBER_COOKIE,
@@ -51,6 +52,12 @@ export default async (request: Request): Promise<Response> => {
     if (!(await withinRateLimit(context.store, email, ip))) {
       throw new BookingError('RATE_LIMITED');
     }
+
+    // After the rate limit, so it cannot be used to probe, and before the
+    // lookup, so the account it creates is found by the same read as any
+    // other. Returns immediately unless this is the one bootstrap address
+    // with no credential yet.
+    await ensureBootstrapAdmin(context.store, email, context.venueId);
 
     const credential = await context.store.credentials.get(email);
 
