@@ -1,0 +1,84 @@
+name: member-booking
+
+# The booking channel is the one part of this repo where a regression has a
+# physical consequence: too many people in a room. So its checks run on every
+# push, and the capacity tests run against a real Postgres rather than only
+# against the in-memory store.
+
+on:
+  # Manual trigger included so the suite can be run on demand, and so this
+  # workflow can be verified the moment Actions is enabled for the repository
+  # without needing a fresh commit to trigger it.
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'member-booking/**'
+      - '.github/workflows/member-booking.yml'
+  pull_request:
+    paths:
+      - 'member-booking/**'
+      - '.github/workflows/member-booking.yml'
+
+defaults:
+  run:
+    working-directory: member-booking
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: member_booking_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/member_booking_test
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: member-booking/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Apply migrations
+        # The same migration files Netlify DB applies on deploy, in the same
+        # order, so CI tests the schema that production will actually have.
+        run: |
+          for dir in $(ls -d netlify/database/migrations/*/ | sort); do
+            echo "applying $dir"
+            psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$dir/migration.sql"
+          done
+
+      - name: Test
+        run: npx vitest run
+
+      - name: Check no credential reached the tree
+        # The Hapana key and the session secret must exist only as environment
+        # variables. A hit here means one was committed.
+        run: |
+          if grep -rInE '(HAPANA_API_KEY|SESSION_SECRET|EMAIL_API_KEY)[[:space:]]*[=:][[:space:]]*["'"'"']?[A-Za-z0-9._:-]{16,}' \
+               --exclude-dir=node_modules --exclude='*.example' . ; then
+            echo "::error::A credential-shaped value is committed. Move it to an environment variable."
+            exit 1
+          fi
+          echo "No committed credentials found."

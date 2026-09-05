@@ -1,0 +1,10 @@
+node_modules/
+.env
+.env.*
+!.env.example
+.netlify/
+dist/
+*.log
+
+# Netlify local state
+.netlify/

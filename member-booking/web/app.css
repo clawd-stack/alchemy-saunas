@@ -1,0 +1,132 @@
+/* ------------------------------------------------------------------
+   Alchemy member booking, shared styles.
+
+   The booking page is embedded in the existing Alchemy Webflow site, so the
+   palette and type here are deliberately quiet and inherit where they can.
+   Swap the tokens below for the real brand values once Alchemy marketing
+   supplies them (PRD dependency 9.5); nothing else needs to change.
+   ------------------------------------------------------------------ */
+
+:root {
+  --ink: #12211f;
+  --ink-soft: #5b6b68;
+  --accent: #1f4d46;
+  --accent-soft: #e8efed;
+  --ground: #f6f4f0;
+  --card: #ffffff;
+  --line: #e2ded7;
+  --warn: #8a4b1f;
+  --warn-soft: #fbf0e6;
+  --bad: #8c2f22;
+  --bad-soft: #fbeae7;
+  --good: #1f5c3d;
+  --good-soft: #e7f2ec;
+  --radius: 10px;
+  --shadow: 0 1px 2px rgba(18, 33, 31, 0.06), 0 8px 24px rgba(18, 33, 31, 0.05);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font: 16px/1.55 -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap { max-width: 720px; margin: 0 auto; padding: 32px 20px 64px; }
+.wrap--wide { max-width: 1040px; }
+
+.eyebrow {
+  font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--ink-soft); margin: 0 0 8px;
+}
+h1 { font-size: 26px; line-height: 1.25; margin: 0 0 8px; }
+h2 { font-size: 18px; margin: 32px 0 12px; }
+.lede { color: var(--ink-soft); margin: 0 0 28px; }
+
+.card {
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow);
+  margin-bottom: 16px;
+}
+
+label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 6px; }
+.hint { font-size: 13px; color: var(--ink-soft); margin: 4px 0 0; font-weight: 400; }
+
+input[type='text'], input[type='email'], input[type='date'], select {
+  width: 100%; padding: 11px 12px; font: inherit; color: inherit;
+  background: #fff; border: 1px solid var(--line); border-radius: 8px;
+}
+input:focus, select:focus, button:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 1px;
+}
+
+button {
+  font: inherit; font-weight: 600; cursor: pointer;
+  border-radius: 8px; border: 1px solid transparent; padding: 11px 18px;
+}
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:disabled { background: #9db3ae; cursor: not-allowed; }
+.btn-quiet { background: #fff; border-color: var(--line); color: var(--ink); }
+.btn-danger { background: #fff; border-color: var(--bad); color: var(--bad); }
+.btn-small { padding: 7px 12px; font-size: 14px; }
+
+.row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+.row--between { justify-content: space-between; }
+.stack > * + * { margin-top: 14px; }
+
+.notice { padding: 12px 14px; border-radius: 8px; font-size: 14px; margin-bottom: 16px; }
+.notice--info { background: var(--accent-soft); color: var(--accent); }
+.notice--warn { background: var(--warn-soft); color: var(--warn); }
+.notice--bad { background: var(--bad-soft); color: var(--bad); }
+.notice--good { background: var(--good-soft); color: var(--good); }
+
+.pill {
+  display: inline-block; padding: 3px 9px; border-radius: 99px;
+  font-size: 12px; font-weight: 600; letter-spacing: 0.02em;
+}
+.pill--good { background: var(--good-soft); color: var(--good); }
+.pill--warn { background: var(--warn-soft); color: var(--warn); }
+.pill--bad { background: var(--bad-soft); color: var(--bad); }
+.pill--quiet { background: var(--accent-soft); color: var(--accent); }
+
+/* Session picker ------------------------------------------------- */
+.days { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 16px; }
+.day {
+  flex: 0 0 auto; min-width: 78px; text-align: center; padding: 10px 8px;
+  border: 1px solid var(--line); border-radius: 8px; background: #fff; cursor: pointer;
+}
+.day[aria-pressed='true'] { border-color: var(--accent); background: var(--accent-soft); }
+.day .dow { font-size: 12px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.08em; }
+.day .dom { font-size: 18px; font-weight: 700; }
+
+.slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 10px; }
+.slot {
+  text-align: left; padding: 12px; border: 1px solid var(--line);
+  border-radius: 8px; background: #fff; cursor: pointer;
+}
+.slot[aria-pressed='true'] { border-color: var(--accent); background: var(--accent-soft); }
+.slot:disabled { opacity: 0.45; cursor: not-allowed; }
+.slot .time { font-weight: 700; }
+.slot .left { font-size: 13px; color: var(--ink-soft); }
+
+/* Door list ------------------------------------------------------ */
+table { width: 100%; border-collapse: collapse; font-size: 15px; }
+th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-soft); }
+.guest-row td:first-child { padding-left: 26px; color: var(--ink-soft); }
+.scroll-x { overflow-x: auto; }
+
+.totals { display: flex; gap: 20px; flex-wrap: wrap; font-size: 14px; }
+.totals strong { display: block; font-size: 20px; }
+
+.muted { color: var(--ink-soft); font-size: 14px; }
+.spinner { color: var(--ink-soft); font-size: 14px; padding: 12px 0; }
+.hidden { display: none !important; }
+
+@media (max-width: 560px) {
+  .wrap { padding: 20px 14px 48px; }
+  .slots { grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); }
+}
