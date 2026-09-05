@@ -1,5 +1,8 @@
 import { api, el, notice } from '/api.js';
 import { mountSignIn, showPasswordChange } from '/signin.js';
+import { mountNav } from '/nav.js';
+
+mountNav();
 
 /**
  * Configuration screen, PRD 5.7.
@@ -65,6 +68,7 @@ async function load() {
     renderEmailCheck();
     renderSummary(data.config, data.entries);
     renderForm(data.config, data.entries);
+    loadMembers();
     loadCredentials();
     loadStaff();
     loadAudit();
@@ -350,6 +354,172 @@ async function loadAudit() {
     auditEl.innerHTML = '';
     auditEl.append(el('p', { class: 'muted', text: error.message }));
   }
+}
+
+/**
+ * Members.
+ *
+ * Adding somebody here and issuing them a password are two halves of one act,
+ * so the form does both and the list says plainly when a member has no way to
+ * sign in. Splitting them across two screens is how half a member gets made.
+ */
+async function loadMembers() {
+  const card = document.getElementById('members');
+  try {
+    const data = await api.get('/api/admin/members');
+    card.innerHTML = '';
+
+    if (!data.hapanaConfigured) {
+      card.append(
+        el('div', {
+          class: 'notice notice--warn',
+          text: 'No Hapana key is set, so this list is the only membership the channel knows about. Once the key is added, Hapana is checked first and these entries become the fallback.',
+        }),
+      );
+    }
+
+    if (data.members.length === 0) {
+      card.append(el('p', { class: 'muted', text: 'No members added by hand yet.' }));
+    } else {
+      const body = el('tbody');
+      for (const member of data.members) {
+        body.append(
+          el('tr', { class: member.status === 'active' ? '' : 'muted' }, [
+            el('td', {}, [
+              el('strong', { text: member.name }),
+              el('div', { class: 'hint', text: member.email }),
+            ]),
+            el('td', {}, [
+              el('span', {
+                class: `pill pill--${member.status === 'active' ? 'good' : 'warn'}`,
+                text: member.status,
+              }),
+            ]),
+            el('td', {}, [
+              member.canSignIn
+                ? el('span', { class: 'muted', text: 'Has a password' })
+                : el('span', { class: 'pill pill--bad', text: 'No password: cannot sign in' }),
+            ]),
+            el('td', {}, memberActions(member)),
+          ]),
+        );
+      }
+      card.append(
+        el('div', { class: 'scroll-x' }, [
+          el('table', {}, [
+            el('thead', {}, [
+              el('tr', {}, [
+                el('th', { text: 'Member' }),
+                el('th', { text: 'Status' }),
+                el('th', { text: 'Sign-in' }),
+                el('th', { text: '' }),
+              ]),
+            ]),
+            body,
+          ]),
+        ]),
+      );
+    }
+
+    card.append(memberForm());
+  } catch (error) {
+    card.innerHTML = '';
+    card.append(
+      el('p', { class: 'muted', text: error.code === 'FORBIDDEN' ? 'Only an admin can manage members.' : error.message }),
+    );
+  }
+}
+
+function memberActions(member) {
+  const active = member.status === 'active';
+  const toggle = el('button', { class: 'btn-quiet btn-small', type: 'button', text: active ? 'Pause' : 'Reactivate' });
+  toggle.addEventListener('click', async () => {
+    toggle.disabled = true;
+    try {
+      const result = await api.patch('/api/admin/members', {
+        memberId: member.memberId,
+        status: active ? 'paused' : 'active',
+      });
+      notice(messages, 'good', result.message);
+      await loadMembers();
+    } catch (error) {
+      notice(messages, 'bad', error.message);
+      toggle.disabled = false;
+    }
+  });
+
+  const remove = el('button', { class: 'btn-quiet btn-small', type: 'button', text: 'Remove' });
+  remove.addEventListener('click', async () => {
+    remove.disabled = true;
+    try {
+      const result = await api.del('/api/admin/members', { memberId: member.memberId });
+      notice(messages, 'good', result.message);
+      await loadMembers();
+    } catch (error) {
+      notice(messages, 'bad', error.message);
+      remove.disabled = false;
+    }
+  });
+
+  return el('div', { class: 'row', style: 'gap:6px' }, [toggle, remove]);
+}
+
+function memberForm() {
+  const first = el('input', { type: 'text', placeholder: 'First name' });
+  const last = el('input', { type: 'text', placeholder: 'Last name' });
+  const email = el('input', { type: 'email', required: 'required', placeholder: 'member@example.com', autocomplete: 'off' });
+
+  const form = el('form', { class: 'stack', style: 'margin-top:18px' }, [
+    el('h3', { style: 'margin:0', text: 'Add a member' }),
+    el('p', { class: 'hint', style: 'margin:0', text: 'Creates the membership and a password in one step. The password is shown once.' }),
+    el('div', { class: 'row' }, [
+      el('div', { style: 'flex:1;min-width:140px' }, [el('label', { text: 'First name' }), first]),
+      el('div', { style: 'flex:1;min-width:140px' }, [el('label', { text: 'Last name' }), last]),
+    ]),
+    el('div', {}, [el('label', { text: 'Email' }), email]),
+    el('button', { class: 'btn-primary', type: 'submit', text: 'Add member' }),
+  ]);
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const button = form.querySelector('button');
+    const payload = {
+      email: email.value.trim(),
+      firstName: first.value.trim() || null,
+      lastName: last.value.trim() || null,
+    };
+    button.disabled = true;
+    try {
+      const created = await api.post('/api/admin/members', payload);
+      // Same ordering trap as issuing a password: the refresh replaces this
+      // card, so the panel carrying the password is attached after it.
+      await loadMembers();
+
+      const panel = el('div', { class: 'notice notice--good', style: 'margin-top:12px' }, [
+        el('p', { style: 'margin:0 0 8px', text: created.message }),
+      ]);
+      if (created.password) {
+        panel.append(
+          el('input', {
+            type: 'text',
+            readonly: 'readonly',
+            value: created.password,
+            style: 'font-family:ui-monospace,monospace;font-size:18px;letter-spacing:1px',
+            onclick: (event) => event.target.select(),
+          }),
+          el('p', { class: 'hint', style: 'margin:8px 0 0', text: `Send this to ${created.member.email} with the booking link. It cannot be shown again.` }),
+        );
+      }
+      document.getElementById('members').append(panel);
+      panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    } catch (error) {
+      notice(messages, 'bad', error.message);
+    } finally {
+      button.disabled = false;
+    }
+  });
+
+  return form;
 }
 
 /**

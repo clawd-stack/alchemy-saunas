@@ -1,5 +1,8 @@
 import { api, el, money, notice } from '/api.js';
 import { mountSignIn } from '/signin.js';
+import { mountNav } from '/nav.js';
+
+mountNav();
 
 /**
  * Door list. Built for a phone or a tablet held at a door: big touch targets,

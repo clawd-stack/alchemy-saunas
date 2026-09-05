@@ -62,7 +62,7 @@ describe('door list', () => {
     const { context, store, session } = makeHarness({ config: { bookingBackend: 'local' } });
     await createBooking(context, MEMBER_A, { externalSessionId: session.id, guests: [] });
     await store.members.upsertMany([
-      { memberId: 'mem-a', email: 'a@example.com', firstName: 'Ada', lastName: 'Active', status: 'active', homeVenueId: 'east-fremantle', syncedAt: new Date().toISOString() },
+      { memberId: 'mem-a', email: 'a@example.com', firstName: 'Ada', lastName: 'Active', status: 'active', homeVenueId: 'east-fremantle', syncedAt: new Date().toISOString(), source: 'hapana' },
     ]);
 
     const doorList = await buildDoorList(context, session.id);

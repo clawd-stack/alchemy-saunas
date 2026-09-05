@@ -147,6 +147,8 @@ export interface MemberRecord {
   status: MembershipStatus;
   homeVenueId: string | null;
   syncedAt: string;
+  /** Where this record came from. Manual entries are never overwritten by a sync. */
+  source: 'hapana' | 'manual';
 }
 
 export interface CredentialRecord {
@@ -267,6 +269,16 @@ export interface Store {
     get(memberId: string): Promise<MemberRecord | null>;
     upsertMany(members: MemberRecord[]): Promise<void>;
     lastSyncAt(): Promise<string | null>;
+    /** Adds or updates a member the venue entered by hand. */
+    upsertManual(input: {
+      email: string;
+      firstName: string | null;
+      lastName: string | null;
+      status: MembershipStatus;
+      homeVenueId: string | null;
+    }): Promise<MemberRecord>;
+    listManual(): Promise<MemberRecord[]>;
+    removeManual(memberId: string): Promise<boolean>;
   };
   auth: {
     /** Returns true when the caller is within the allowance. */

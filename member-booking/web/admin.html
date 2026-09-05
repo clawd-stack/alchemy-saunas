@@ -8,10 +8,14 @@
   <link rel="stylesheet" href="/app.css">
 </head>
 <body>
+  <header class="site-header" id="site-header"></header>
+
   <main class="wrap">
-    <p class="eyebrow">Alchemy East Fremantle</p>
+    <div class="page-head">
+      <p class="eyebrow">Alchemy East Fremantle</p>
     <h1>Member channel configuration</h1>
     <p class="lede">Changes take effect immediately, with no deploy. The allocation cannot be set above what the venue ceiling allows.</p>
+    </div>
     <div id="messages"></div>
 
     <section class="card" id="signin-card">
@@ -33,6 +37,11 @@
       <div id="warnings"></div>
       <div id="capacity-summary" class="card"></div>
       <form id="config-form" class="card stack"></form>
+      <div class="card">
+        <h2 style="margin-top:0">Members</h2>
+        <p class="muted" style="margin-top:0">Members the venue holds itself. Hapana is asked first on every sign-in; this list covers anyone Hapana does not know, and everyone while no Hapana key is set.</p>
+        <div id="members"></div>
+      </div>
       <div class="card">
         <h2 style="margin-top:0">Sign-in accounts</h2>
         <p class="muted" style="margin-top:0">Who can sign in, and with what. Issue a password here and pass it on however you like; a generated one is shown once and never again.</p>

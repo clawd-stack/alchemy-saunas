@@ -7,7 +7,7 @@ in a chat transcript.
 
 | | Detail |
 |---|---|
-| **Code** | Merged to `main`. CI green: 155 tests, 22 of them against a real Postgres. |
+| **Code** | Merged to `main`. CI green: 171 tests, 22 of them against a real Postgres. |
 | **Netlify site** | `alchemy-booking`, team Ragan. Site id `cdfc3250-6203-4e41-bb89-79c171e270f9`. URL will be `https://alchemy-booking.netlify.app`. |
 | **Database** | Nothing to create. `@netlify/database` is a dependency, so Netlify DB provisions Postgres on the first build and applies `netlify/database/migrations/` in order before publishing. A failed migration blocks the publish. |
 | **Environment variables** | `SESSION_SECRET` (generated), `PUBLIC_BASE_URL`, `ALLOWED_ORIGINS`, `DEFAULT_VENUE_ID`, `EMAIL_PROVIDER=console` are set on the site and verified by reading them back. They are stored as ordinary variables, not secret-flagged: variable scoping and the secret flag are paid-plan features on Netlify, and requesting them makes the write silently do nothing. Mark `SESSION_SECRET` secret in the UI if the plan is ever upgraded. |
@@ -35,6 +35,19 @@ If a deploy ever finishes suspiciously fast, check the deploy summary for "No
 functions deployed" and "No header rules processed". Both mean the
 configuration was not applied, whatever the deploy status says.
 
+## A deploy can be perfect and the app still dead
+
+Production once returned 500 from every endpoint while every Netlify deploy
+record was clean: the build ran, the functions bundled, the migrations applied.
+`buildContext()` resolves the membership source on every request and threw when
+`HAPANA_API_KEY` was missing, so the whole API failed, including the admin
+screen where the key would have been set.
+
+Deploy records say the build worked. They say nothing about whether the app
+works. `curl https://alchemy-booking.netlify.app/api/health` is the check that
+actually answers that, and it is worth running after any deploy that changes
+startup or configuration.
+
 ## Remaining, and who has to do it
 
 ### 1. Connect the site to GitHub, so it builds (2 minutes, phone is fine)
@@ -54,7 +67,7 @@ On app.netlify.com, phone browser is fine:
    directory. `netlify.toml` at the repository root declares all of them.
 5. Deploy.
 
-The first build provisions the database and applies all five migrations.
+The first build provisions the database and applies all six migrations.
 
 ### 2. Signing in
 
@@ -117,7 +130,29 @@ The seeded addresses `james@alchemysaunas.com.au` and
 `door.eastfremantle@alchemysaunas.com.au` are placeholders. Replace them with
 real ones and deactivate what is left.
 
-### 4. Email provider (optional)
+### 4. Members
+
+Two ways in, and they work together.
+
+**Hapana**, once `HAPANA_API_KEY` is set. Asked first on every sign-in, and
+authoritative wherever it has an answer: a manual entry cannot promote somebody
+Hapana says is paused.
+
+**The member list on the admin screen**, for anybody Hapana does not know, and
+for everybody while no key is set. Add a member and a password is issued in the
+same step, because doing it in two is how half a member gets created. The list
+says plainly when somebody has no password and therefore cannot sign in.
+
+A manual member is not a back door. Only an admin can create one, each appears
+as its own row, pausing or removing one takes effect immediately, and a Hapana
+sync never overwrites or deletes them (they carry a `manual:` id prefix and a
+`source` column).
+
+This is what lets the channel open before Hapana is connected. It also stays
+useful afterwards: it is the only way to let somebody in at the door when
+Hapana is wrong about them.
+
+### 5. Email provider (optional)
 
 **Sign-in no longer depends on this.** Email now only carries guest waivers,
 booking confirmations and cancellation notices. Nobody is locked out while
@@ -155,7 +190,7 @@ Sign up, create an API key, then set `EMAIL_PROVIDER` to `resend` or
 All three are already implemented, so whichever you choose is configuration
 only, with no code change.
 
-### 5. Hapana credentials
+### 6. Hapana credentials
 
 Set `HAPANA_API_KEY` in the Netlify environment. **Rotate the key first** if it
 has ever been sent through chat or email, and name the API client
@@ -173,13 +208,13 @@ HAPANA_API_KEY='…' node member-booking/scripts/probe-hapana.mjs
 It answers whether Pattern A is available. Not urgent: Pattern B ships as the
 default and needs read access only.
 
-### 6. Webflow page
+### 7. Webflow page
 
 Create the private page and embed `web/booking.html`, or iframe it from
 `https://alchemy-booking.netlify.app/booking.html`. `netlify.toml`
 already allows framing from the Alchemy domains and blocks everyone else.
 
-### 7. Two decisions, not technical
+### 8. Two decisions, not technical
 
 - **Who reconciles the daily EFTPOS CSV** against the terminal settlement. With
   no payment integration this is the only control against guest revenue

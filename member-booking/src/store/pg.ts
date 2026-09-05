@@ -121,6 +121,7 @@ function mapMember(row: any): MemberRecord {
     status: row.status,
     homeVenueId: row.home_venue_id ?? null,
     syncedAt: iso(row.synced_at),
+    source: row.source === 'manual' ? 'manual' : 'hapana',
   };
 }
 
@@ -489,6 +490,40 @@ export function createPgStore(connectionString?: string): Store {
       async get(memberId: string): Promise<MemberRecord | null> {
         const [row]: any[] = await sql()`select * from members_cache where member_id = ${memberId}`;
         return row ? mapMember(row) : null;
+      },
+      async upsertManual({ email, firstName, lastName, status, homeVenueId }): Promise<MemberRecord> {
+        // Keyed on the address, so re-adding somebody updates them rather than
+        // creating a second membership for the same person. The id is derived
+        // from the address for the same reason, and prefixed so it can never
+        // collide with a Hapana id or be overwritten by a sync.
+        const normalised = email.toLowerCase();
+        const [row]: any[] = await sql()`
+          insert into members_cache (member_id, email, first_name, last_name, status, home_venue_id, source, synced_at)
+          values (${`manual:${normalised}`}, ${normalised}, ${firstName}, ${lastName}, ${status}, ${homeVenueId}, 'manual', now())
+          on conflict (member_id) do update
+            set email = excluded.email,
+                first_name = excluded.first_name,
+                last_name = excluded.last_name,
+                status = excluded.status,
+                home_venue_id = excluded.home_venue_id,
+                source = 'manual',
+                synced_at = now()
+          returning *
+        `;
+        return mapMember(row);
+      },
+      async listManual(): Promise<MemberRecord[]> {
+        const rows: any[] = await sql()`
+          select * from members_cache where source = 'manual' order by lower(email)
+        `;
+        return rows.map(mapMember);
+      },
+      async removeManual(memberId: string): Promise<boolean> {
+        // Scoped to manual rows: this must never be able to delete a synced one.
+        const rows: any[] = await sql()`
+          delete from members_cache where member_id = ${memberId} and source = 'manual' returning member_id
+        `;
+        return rows.length > 0;
       },
       async upsertMany(members: MemberRecord[]): Promise<void> {
         if (members.length === 0) return;
