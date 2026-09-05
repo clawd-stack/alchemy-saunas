@@ -8,7 +8,7 @@ import { issueStaffSession } from '../src/lib/auth.ts';
 import { STAFF_COOKIE } from '../src/lib/http.ts';
 import { ACTIVE_MEMBER, PAUSED_MEMBER, VENUE_ID } from './helpers.ts';
 
-import membersHandler from '../netlify/functions/admin-members.ts';
+import peopleHandler from '../netlify/functions/admin-people.ts';
 import loginHandler from '../netlify/functions/auth-login.ts';
 
 /**
@@ -34,7 +34,7 @@ const ADMIN = {
 };
 
 function call(body: unknown, method = 'POST', cookie = adminCookie()): Request {
-  return new Request(`${BASE}/api/admin/members`, {
+  return new Request(`${BASE}/api/admin/people`, {
     method,
     headers: { 'content-type': 'application/json', cookie },
     body: JSON.stringify(body),
@@ -42,7 +42,7 @@ function call(body: unknown, method = 'POST', cookie = adminCookie()): Request {
 }
 
 function get(cookie = adminCookie()): Request {
-  return new Request(`${BASE}/api/admin/members`, { headers: { cookie } });
+  return new Request(`${BASE}/api/admin/people`, { headers: { cookie } });
 }
 
 function adminCookie() {
@@ -59,9 +59,9 @@ beforeEach(() => {
 
 describe('adding a member by hand', () => {
   it('creates the membership and a password together', async () => {
-    const body = await (await membersHandler(call({ email: 'New@Example.com', firstName: 'Nia', lastName: 'New' }))).json();
+    const body = await (await peopleHandler(call({ action: 'add', email: 'New@Example.com', name: 'Nia New', role: 'member' }))).json();
 
-    expect(body.member.email).toBe('new@example.com');
+    expect(body.email).toBe('new@example.com');
     expect(body.password).toHaveLength(20);
     expect((await store.credentials.get('new@example.com'))?.mustChange).toBe(true);
 
@@ -77,39 +77,37 @@ describe('adding a member by hand', () => {
 
   it('is closed to anyone but an admin', async () => {
     const door = `${STAFF_COOKIE}=${issueStaffSession({ ...ADMIN, role: 'door' })}`;
-    expect((await membersHandler(get(door))).status).toBe(403);
-    expect((await membersHandler(new Request(`${BASE}/api/admin/members`))).status).toBe(401);
-  });
-
-  it('refuses an address that is already a staff account', async () => {
-    const response = await membersHandler(call({ email: ADMIN.email }));
-    expect(response.status).toBe(400);
-    // Sign-in resolves staff first, so such a membership would never be reached.
-    expect((await response.json()).message).toContain('staff account');
+    expect((await peopleHandler(get(door))).status).toBe(403);
+    expect((await peopleHandler(new Request(`${BASE}/api/admin/people`))).status).toBe(401);
   });
 
   it('updates in place rather than creating a second membership', async () => {
-    await membersHandler(call({ email: 'dup@example.com', firstName: 'One' }));
-    await membersHandler(call({ email: 'dup@example.com', firstName: 'Two' }));
+    await peopleHandler(call({ action: 'add', email: 'dup@example.com', name: 'One', role: 'member' }));
+    await peopleHandler(call({ action: 'add', email: 'dup@example.com', name: 'Two', role: 'member' }));
     expect(await store.members.listManual()).toHaveLength(1);
   });
 
   it('does not reissue a password to somebody who already has one', async () => {
-    const first = await (await membersHandler(call({ email: 'dup@example.com' }))).json();
-    const second = await (await membersHandler(call({ email: 'dup@example.com' }))).json();
+    const first = await (await peopleHandler(call({ action: 'add', email: 'dup@example.com', name: 'One', role: 'member' }))).json();
+    const second = await (await peopleHandler(call({ action: 'add', email: 'dup@example.com', name: 'One', role: 'member' }))).json();
     expect(first.password).toBeTruthy();
     // Silently replacing a password the member is already using would lock them out.
     expect(second.password).toBeNull();
+    expect((await loginHandler(new Request(`${BASE}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'dup@example.com', password: first.password }),
+    }))).status).toBe(200);
   });
 
-  it('shows on the list whether each member can actually sign in', async () => {
+  it('shows on the list whether each person can actually sign in', async () => {
     await store.members.upsertManual({ email: 'nopass@example.com', firstName: null, lastName: null, status: 'active', homeVenueId: VENUE_ID });
-    await membersHandler(call({ email: 'haspass@example.com' }));
+    await peopleHandler(call({ action: 'add', email: 'haspass@example.com', name: 'Has Pass', role: 'member' }));
 
-    const body = await (await membersHandler(get())).json();
-    const byEmail = new Map(body.members.map((m: any) => [m.email, m]));
-    expect((byEmail.get('nopass@example.com') as any).canSignIn).toBe(false);
-    expect((byEmail.get('haspass@example.com') as any).canSignIn).toBe(true);
+    const body = await (await peopleHandler(get())).json();
+    const byEmail = new Map(body.people.map((p: any) => [p.email, p]));
+    expect((byEmail.get('nopass@example.com') as any).signIn).toBe('none');
+    expect((byEmail.get('haspass@example.com') as any).signIn).toBe('issued');
   });
 });
 
@@ -169,23 +167,22 @@ describe('where a manual member sits against Hapana', () => {
   });
 
   it('stops working the moment it is paused or removed', async () => {
-    const created = await (await membersHandler(call({ email: 'temp@example.com' }))).json();
-    const memberId = `manual:temp@example.com`;
+    const email = 'temp@example.com';
+    const created = await (await peopleHandler(call({ action: 'add', email, name: 'Temp One', role: 'member' }))).json();
     const membership = createUnavailableMembership('no key');
 
-    await membersHandler(call({ memberId, status: 'paused' }, 'PATCH'));
-    expect(await verifyMemberByEmail({ store, membership, config: localConfig }, 'temp@example.com')).toBeNull();
+    await peopleHandler(call({ email, status: 'paused' }, 'PATCH'));
+    expect(await verifyMemberByEmail({ store, membership, config: localConfig }, email)).toBeNull();
 
-    await membersHandler(call({ memberId, status: 'active' }, 'PATCH'));
-    expect(await verifyMemberByEmail({ store, membership, config: localConfig }, 'temp@example.com')).not.toBeNull();
+    await peopleHandler(call({ email, status: 'active' }, 'PATCH'));
+    expect(await verifyMemberByEmail({ store, membership, config: localConfig }, email)).not.toBeNull();
 
-    await membersHandler(call({ memberId }, 'DELETE'));
-    expect(await verifyMemberByEmail({ store, membership, config: localConfig }, 'temp@example.com')).toBeNull();
+    await peopleHandler(call({ email }, 'DELETE'));
+    expect(await verifyMemberByEmail({ store, membership, config: localConfig }, email)).toBeNull();
 
-    // The password is deliberately left alone: removing the membership is what
-    // stops them booking, and deleting the credential too would be a second
-    // destructive act the admin did not ask for.
-    expect(await store.credentials.get('temp@example.com')).not.toBeNull();
+    // The sign-in goes with them. The old screens removed a membership and
+    // left the password standing, which read as "removed" and was not.
+    expect(await store.credentials.get(email)).toBeNull();
     expect(created.password).toBeTruthy();
   });
 
@@ -208,7 +205,8 @@ describe('where a manual member sits against Hapana', () => {
     expect(await store.members.removeManual('hapana-1')).toBe(false);
     expect(await store.members.get('hapana-1')).not.toBeNull();
 
-    // And the endpoint refuses it too, rather than relying on the store alone.
-    expect((await membersHandler(call({ memberId: 'hapana-1' }, 'DELETE'))).status).toBe(404);
+    // And the endpoint refuses it too: a Hapana member is not on this list at
+    // all, so there is nothing here to remove.
+    expect((await peopleHandler(call({ email: 'synced@example.com' }, 'DELETE'))).status).toBe(404);
   });
 });

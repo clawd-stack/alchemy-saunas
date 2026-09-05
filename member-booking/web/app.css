@@ -202,7 +202,7 @@ input:focus, select:focus, textarea:focus, button:focus-visible, a:focus-visible
 select { background-image: none; }
 
 button {
-  font: inherit; font-weight: 400; cursor: pointer;
+  font: inherit; font-weight: 400; cursor: pointer; white-space: nowrap;
   letter-spacing: .1em; text-transform: lowercase;
   border-radius: var(--r); border: 1px solid transparent; padding: 15px 22px;
   transition: background 160ms ease, border-color 160ms ease, color 160ms ease, opacity 160ms ease;
@@ -222,6 +222,9 @@ button {
 .row { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
 .row--between { justify-content: space-between; }
 .row--tight { gap: 10px; }
+/* Buttons in a table cell: wrapping turns three of them into a column and
+   the row three times as tall. The table scrolls sideways instead. */
+.row--nowrap { flex-wrap: nowrap; }
 .stack > * + * { margin-top: 20px; }
 
 /* Feedback --------------------------------------------------------- */
