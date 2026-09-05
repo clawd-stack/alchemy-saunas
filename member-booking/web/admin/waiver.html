@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
-  <title>Settings, Alchemy East Fremantle</title>
+  <title>Waiver, Alchemy East Fremantle</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/app.css">
 </head>
@@ -12,13 +12,13 @@
   <header class="site-header" id="site-header"></header>
 
   <main class="wrap">
-    <h1>Settings</h1>
+    <h1>Waiver</h1>
     <div id="messages"></div>
 
     <section class="card card--pad" id="signin-card">
       <form id="signin-form" class="stack">
         <div>
-          <label for="email">Email</label>
+          <label for="email">Staff email</label>
           <input id="email" type="email" autocomplete="email" required>
         </div>
         <div>
@@ -29,28 +29,10 @@
       </form>
     </section>
 
-    <section id="admin-section" class="hidden">
-      <div id="warnings"></div>
-      <div class="card" id="capacity-summary"></div>
-      <div class="card" id="own-account"></div>
-      <div class="card" id="email-check"></div>
-
-      <h2>Channel</h2>
-      <form id="config-form" class="card card--pad stack"></form>
-
-      <h2>Members</h2>
-      <div class="card" id="members"></div>
-
-      <h2>Sign-in accounts</h2>
-      <div class="card" id="credentials"></div>
-
-      <h2>Staff</h2>
-      <div class="card" id="staff"></div>
-
-      <h2>Audit</h2>
-      <div class="card" id="audit"></div>
-    </section>
+    <div id="page-body" class="hidden">
+      <div id="waiver"></div>
+    </div>
   </main>
-  <script type="module" src="/admin.js"></script>
+  <script type="module" src="/admin/waiver-page.js"></script>
 </body>
 </html>

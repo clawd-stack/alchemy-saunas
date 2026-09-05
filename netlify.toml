@@ -1,6 +1,7 @@
 # Alchemy East Fremantle member booking channel.
 # The Webflow site stays the public presentation layer; this project owns the API
-# and the three internal pages (booking embed, door list, admin config).
+# and the internal pages (booking embed, member account, door list, and the
+# admin area at /admin/).
 
 # This file lives at the REPOSITORY ROOT deliberately.
 #
@@ -29,8 +30,8 @@
 # Scheduled functions declare their own cadence via `export const config`
 # in netlify/functions/cron-*.ts, so no plugin is needed here.
 
-# The site root has no page of its own: the published folder holds the four
-# app pages and nothing else, so "/" was a 404. Send it to the member booking
+# The site root has no page of its own: the published folder holds the app
+# pages and nothing else, so "/" was a 404. Send it to the member booking
 # page, which is the entry point members are given. Nothing is exposed by
 # this: every action on that page is authenticated server-side, and the page
 # itself carries noindex.
@@ -38,6 +39,14 @@
   from = "/"
   to = "/booking.html"
   status = 302
+
+# The admin area moved from a single /admin.html to a set of pages under
+# /admin/. Staff bookmark this URL, so the old one keeps working rather than
+# turning into a 404 on somebody's phone mid-shift.
+[[redirects]]
+  from = "/admin.html"
+  to = "/admin/"
+  status = 301
 
 [[headers]]
   for = "/*"

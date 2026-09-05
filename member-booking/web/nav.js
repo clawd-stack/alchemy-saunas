@@ -1,12 +1,18 @@
 import { api, el } from '/api.js';
 
 /**
- * The site header, shared by every page.
+ * The site header, in two flavours from one implementation.
  *
- * One nav rather than four copies, because the links change with who is signed
- * in and four copies would drift. It renders immediately from the page it is on
- * and then fills in the rest once /api/auth/session answers, so the header is
- * never blank while a request is in flight.
+ * mountNav() is the member header: Book, and My account once signed in. It
+ * carries no staff links at all. A member who opens the menu and finds
+ * "Settings" either clicks it and lands somewhere confusing, or learns the
+ * venue's admin lives one tap from their booking screen. Neither is wanted,
+ * and the door list is not a thing to advertise. Staff reach their pages by
+ * going to /admin/ directly, which is a sign-in page.
+ *
+ * mountAdminNav() is the staff header, used only inside the admin area. It
+ * appears once somebody is signed in as staff, so the sign-in page itself
+ * stays bare.
  *
  * The hamburger is a real <button> with aria-expanded and aria-controls, and
  * the panel is toggled with the [hidden] attribute rather than a class, so the
@@ -15,14 +21,29 @@ import { api, el } from '/api.js';
  * phone at a door, a menu that stays open over the list is worse than no menu.
  */
 
-const LINKS = {
-  booking: { href: '/booking.html', label: 'Book' },
-  account: { href: '/account.html', label: 'My account' },
-  doorlist: { href: '/doorlist.html', label: 'Door list' },
-  admin: { href: '/admin.html', label: 'Settings' },
-};
+const MEMBER_LINKS = [
+  { href: '/booking.html', label: 'Book' },
+  { href: '/account.html', label: 'My account', needs: 'member' },
+];
+
+const ADMIN_LINKS = [
+  // Door list first: it is the only one of these anybody opens mid-shift.
+  { href: '/doorlist.html', label: 'Door list' },
+  { href: '/admin/settings.html', label: 'Settings', roles: ['admin', 'manager'] },
+  { href: '/admin/waiver.html', label: 'Waiver', roles: ['admin', 'manager'] },
+  { href: '/admin/people.html', label: 'People', roles: ['admin'] },
+  { href: '/admin/audit.html', label: 'Audit', roles: ['admin', 'manager'] },
+];
 
 export function mountNav() {
+  return mount({ home: '/booking.html', links: MEMBER_LINKS });
+}
+
+export function mountAdminNav() {
+  return mount({ home: '/admin/', links: ADMIN_LINKS, admin: true });
+}
+
+function mount({ home, links, admin = false }) {
   const host = document.getElementById('site-header');
   if (!host) return;
 
@@ -40,12 +61,17 @@ export function mountNav() {
   const nav = el('nav', { class: 'site-nav', id: 'site-nav', 'aria-label': 'Main' }, [list, who]);
   nav.hidden = true;
 
+  const wordmark = el('a', { class: 'wordmark', href: home }, [
+    'Alchemy ',
+    el('span', { text: 'Saunas' }),
+  ]);
+
   host.append(
     el('div', { class: 'site-header__bar' }, [
-      el('a', { class: 'wordmark', href: '/booking.html' }, [
-        'Alchemy ',
-        el('span', { text: 'Saunas' }),
-      ]),
+      admin ? el('div', { class: 'row', style: 'gap:10px' }, [
+        wordmark,
+        el('span', { class: 'nav-area', text: 'Admin' }),
+      ]) : wordmark,
       el('div', { class: 'row', style: 'gap:8px' }, [nav, toggle]),
     ]),
   );
@@ -75,36 +101,24 @@ export function mountNav() {
     if (event.target.closest('a')) setOpen(false);
   });
 
-  render(list, who, null);
+  const draw = (session) => render({ list, who, toggle, links, admin, session });
+  draw(null);
   // Failing to load the session is not worth a message: the links are a
   // convenience, and every page already handles being signed out on its own.
-  api.get('/api/auth/session')
-    .then((session) => render(list, who, session))
-    .catch(() => {});
+  api.get('/api/auth/session').then(draw).catch(() => {});
 
-  return { setOpen };
+  return { setOpen, refresh: () => api.get('/api/auth/session').then(draw).catch(() => {}) };
 }
 
-function render(list, who, session) {
+function render({ list, who, toggle, links, admin, session }) {
   const here = window.location.pathname;
   const staff = session?.staff ?? null;
   const member = session?.member ?? null;
 
-  const visible = [LINKS.booking];
-
-  // A signed-in member gets their own account; there is nothing there for a
-  // member who is not signed in, and a dead link is worse than no link.
-  if (member) visible.push(LINKS.account);
-
-  if (staff) {
-    visible.push(LINKS.doorlist);
-    if (staff.role === 'admin' || staff.role === 'manager') visible.push(LINKS.admin);
-  } else if (!member) {
-    // Signed out entirely, the staff pages still have to be reachable:
-    // somebody has to be able to get to a sign-in form. They are
-    // authenticated on the server, so listing them reveals nothing.
-    visible.push(LINKS.doorlist, LINKS.admin);
-  }
+  const visible = links.filter((link) => {
+    if (admin) return staff ? !link.roles || link.roles.includes(staff.role) : false;
+    return link.needs === 'member' ? Boolean(member) : true;
+  });
 
   list.innerHTML = '';
   for (const link of visible) {
@@ -115,10 +129,12 @@ function render(list, who, session) {
     list.append(anchor);
   }
 
-  who.textContent = staff
-    ? `${staff.name}, ${staff.role}`
-    : member
-      ? member.name
-      : '';
-  who.hidden = !staff && !member;
+  who.textContent = admin
+    ? (staff ? `${staff.name}, ${staff.role}` : '')
+    : (member ? member.name : '');
+  who.hidden = !who.textContent;
+
+  // Nothing to open is worse than an empty panel: on the admin sign-in page
+  // the button would toggle a blank sheet over the form.
+  toggle.hidden = visible.length === 0 && !who.textContent;
 }

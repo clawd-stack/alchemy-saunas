@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Settings, Alchemy East Fremantle</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <header class="site-header" id="site-header"></header>
+
+  <main class="wrap">
+    <h1>Settings</h1>
+    <div id="messages"></div>
+
+    <section class="card card--pad" id="signin-card">
+      <form id="signin-form" class="stack">
+        <div>
+          <label for="email">Staff email</label>
+          <input id="email" type="email" autocomplete="email" required>
+        </div>
+        <div>
+          <label for="password">Password</label>
+          <input id="password" type="password" autocomplete="current-password" required>
+        </div>
+        <button class="btn-primary" type="submit" id="signin-button">Sign in</button>
+      </form>
+    </section>
+
+    <div id="page-body" class="hidden">
+      <div id="warnings"></div>
+      <div id="summary"></div>
+      <div id="settings"></div>
+    </div>
+  </main>
+  <script type="module" src="/admin/settings-page.js"></script>
+</body>
+</html>
