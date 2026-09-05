@@ -616,6 +616,28 @@ export function createMemoryStore(): MemoryStore {
       async getStaff(staffId: string): Promise<StaffRecord | null> {
         return staff.find((s) => s.staffId === staffId && s.active) ?? null;
       },
+      async listStaff(): Promise<StaffRecord[]> {
+        return [...staff].sort(
+          (a, b) => Number(b.active) - Number(a.active) || a.email.localeCompare(b.email),
+        );
+      },
+      async upsertStaff({ email, displayName, role, venueIds }): Promise<StaffRecord> {
+        const wanted = email.toLowerCase();
+        const existing = staff.find((s) => s.email.toLowerCase() === wanted);
+        if (existing) {
+          Object.assign(existing, { displayName, role, venueIds, active: true });
+          return { ...existing };
+        }
+        const record: StaffRecord = { staffId: randomUUID(), email, displayName, role, venueIds, active: true };
+        staff.push(record);
+        return { ...record };
+      },
+      async setStaffActive(staffId: string, active: boolean): Promise<StaffRecord | null> {
+        const record = staff.find((s) => s.staffId === staffId);
+        if (!record) return null;
+        record.active = active;
+        return { ...record };
+      },
     },
 
     audit: {

@@ -76,7 +76,7 @@ jobs:
         # The Hapana key and the session secret must exist only as environment
         # variables. A hit here means one was committed.
         run: |
-          if grep -rInE '(HAPANA_API_KEY|SESSION_SECRET|EMAIL_API_KEY)[[:space:]]*[=:][[:space:]]*["'"'"']?[A-Za-z0-9._:-]{16,}' \
+          if grep -rInE '(HAPANA_API_KEY|SESSION_SECRET|EMAIL_API_KEY|SMTP_PASS|ADMIN_BOOTSTRAP_TOKEN)[[:space:]]*[=:][[:space:]]*["'"'"']?[A-Za-z0-9._:-]{16,}' \
                --exclude-dir=node_modules --exclude='*.example' . ; then
             echo "::error::A credential-shaped value is committed. Move it to an environment variable."
             exit 1

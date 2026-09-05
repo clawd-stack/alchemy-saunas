@@ -39,6 +39,32 @@ const FIELDS = [
 
 let current = null;
 
+/**
+ * Break-glass sign-in.
+ *
+ * Reached as /admin.html?bootstrap=<token>, which is the only way in before an
+ * email provider is configured: the ordinary path emails a link, and email is
+ * the thing being set up. The token is exchanged immediately and stripped from
+ * the address bar, so it does not sit in the URL to be screenshotted, shared
+ * or restored by the browser on a back navigation.
+ */
+async function bootstrapFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get('bootstrap');
+  if (!token) return;
+
+  params.delete('bootstrap');
+  const rest = params.toString();
+  window.history.replaceState({}, '', window.location.pathname + (rest ? `?${rest}` : ''));
+
+  try {
+    const result = await api.post('/api/admin/bootstrap', { token });
+    notice(messages, result.ok ? 'good' : 'bad', result.message);
+  } catch (error) {
+    notice(messages, 'bad', error.message);
+  }
+}
+
 document.getElementById('signin-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   try {
@@ -67,6 +93,7 @@ async function load() {
     renderEmailCheck();
     renderSummary(data.config, data.entries);
     renderForm(data.config, data.entries);
+    loadStaff();
     loadAudit();
   } catch (error) {
     if (error.code === 'UNAUTHENTICATED' || error.code === 'FORBIDDEN') {
@@ -326,4 +353,108 @@ async function loadAudit() {
   }
 }
 
+/**
+ * Staff accounts.
+ *
+ * The seeded addresses are placeholders, and door staff change faster than
+ * deploys do. Revoking access has to be something the venue can do in the
+ * moment it needs doing, because the door list carries member and guest
+ * contact details.
+ */
+async function loadStaff() {
+  const card = document.getElementById('staff');
+  try {
+    const data = await api.get('/api/admin/staff');
+    card.innerHTML = '';
+
+    const body = el('tbody');
+    for (const person of data.staff) {
+      const button = el('button', {
+        class: 'btn-quiet btn-small',
+        type: 'button',
+        text: person.active ? 'Deactivate' : 'Restore',
+      });
+      button.addEventListener('click', async () => {
+        button.disabled = true;
+        try {
+          const result = await api.patch('/api/admin/staff', { staffId: person.staffId, active: !person.active });
+          notice(messages, 'good', result.message);
+          await loadStaff();
+        } catch (error) {
+          notice(messages, 'bad', error.message);
+          button.disabled = false;
+        }
+      });
+
+      body.append(
+        el('tr', { class: person.active ? '' : 'muted' }, [
+          el('td', {}, [el('strong', { text: person.name }), el('div', { class: 'hint', text: person.email })]),
+          el('td', { text: person.role }),
+          el('td', { text: person.active ? 'Active' : 'Deactivated' }),
+          el('td', {}, [button]),
+        ]),
+      );
+    }
+
+    card.append(
+      el('div', { class: 'scroll-x' }, [
+        el('table', {}, [
+          el('thead', {}, [
+            el('tr', {}, [
+              el('th', { text: 'Who' }),
+              el('th', { text: 'Role' }),
+              el('th', { text: 'Status' }),
+              el('th', { text: '' }),
+            ]),
+          ]),
+          body,
+        ]),
+      ]),
+      staffForm(),
+    );
+  } catch (error) {
+    card.innerHTML = '';
+    // A manager reaching this screen is not an error worth shouting about:
+    // they simply do not manage accounts.
+    card.append(el('p', { class: 'muted', text: error.code === 'FORBIDDEN' ? 'Only an admin can manage staff accounts.' : error.message }));
+  }
+}
+
+function staffForm() {
+  const email = el('input', { type: 'email', required: 'required', placeholder: 'name@alchemysaunas.com.au', autocomplete: 'off' });
+  const name = el('input', { type: 'text', required: 'required', placeholder: 'Full name' });
+  const role = el('select', {}, [
+    el('option', { value: 'door', text: 'Door: the door list only' }),
+    el('option', { value: 'manager', text: 'Manager: door list and reconciliation' }),
+    el('option', { value: 'admin', text: 'Admin: everything, including this screen' }),
+  ]);
+
+  const form = el('form', { class: 'stack', style: 'margin-top:16px' }, [
+    el('h3', { style: 'margin:0', text: 'Add or update someone' }),
+    el('p', { class: 'hint', style: 'margin:0', text: 'An existing address is updated in place, which also restores a deactivated account.' }),
+    el('div', {}, [el('label', { text: 'Email' }), email]),
+    el('div', {}, [el('label', { text: 'Name' }), name]),
+    el('div', {}, [el('label', { text: 'Role' }), role]),
+    el('button', { class: 'btn-primary', type: 'submit', text: 'Save' }),
+  ]);
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    try {
+      const result = await api.post('/api/admin/staff', {
+        email: email.value.trim(),
+        name: name.value.trim(),
+        role: role.value,
+      });
+      notice(messages, 'good', result.message);
+      await loadStaff();
+    } catch (error) {
+      notice(messages, 'bad', error.message);
+    }
+  });
+
+  return form;
+}
+
+await bootstrapFromUrl();
 load();

@@ -398,4 +398,56 @@ suite('pg store implementation', () => {
     expect(entry?.value).toBe(40);
     expect(entry?.sourceNote).toContain('TOEF-TEST-1');
   });
+
+  /**
+   * Staff accounts. The upsert conflicts on the email column, which only the
+   * Postgres implementation does: the in-memory store matches on a scan, so it
+   * would pass whether or not the unique constraint and the ON CONFLICT target
+   * actually agree.
+   */
+  it('creates a staff account and updates it in place on the same address', async () => {
+    const email = `staff-${Math.random().toString(36).slice(2, 10)}@example.com`;
+
+    const created = await store.auth.upsertStaff({
+      email,
+      displayName: 'First Name',
+      role: 'door',
+      venueIds: [VENUE_ID],
+    });
+    expect(created.active).toBe(true);
+    expect(created.venueIds).toEqual([VENUE_ID]);
+
+    const updated = await store.auth.upsertStaff({
+      email,
+      displayName: 'Second Name',
+      role: 'manager',
+      venueIds: [VENUE_ID],
+    });
+
+    // Same row, not a second account: the id is what audit trails point at.
+    expect(updated.staffId).toBe(created.staffId);
+    expect(updated.displayName).toBe('Second Name');
+    expect(updated.role).toBe('manager');
+    expect((await store.auth.listStaff()).filter((s) => s.email === email)).toHaveLength(1);
+  });
+
+  it('deactivates without deleting, and re-adding restores the same account', async () => {
+    const email = `staff-${Math.random().toString(36).slice(2, 10)}@example.com`;
+    const created = await store.auth.upsertStaff({ email, displayName: 'Dot', role: 'door', venueIds: [VENUE_ID] });
+
+    await store.auth.setStaffActive(created.staffId, false);
+    expect(await store.auth.getStaffByEmail(email)).toBeNull();
+    expect(await store.auth.getStaff(created.staffId)).toBeNull();
+    // Still on the record, so anything referencing the id still resolves.
+    expect((await store.auth.listStaff()).find((s) => s.staffId === created.staffId)?.active).toBe(false);
+
+    const restored = await store.auth.upsertStaff({ email, displayName: 'Dot', role: 'door', venueIds: [VENUE_ID] });
+    expect(restored.staffId).toBe(created.staffId);
+    expect(restored.active).toBe(true);
+    expect(await store.auth.getStaffByEmail(email)).not.toBeNull();
+  });
+
+  it('returns null rather than throwing for an id that is not there', async () => {
+    expect(await store.auth.setStaffActive('00000000-0000-0000-0000-000000000000', false)).toBeNull();
+  });
 });
