@@ -24,7 +24,9 @@ export default async (request: Request): Promise<Response> => {
     return json(request, {
       ok: true,
       member: member ? { memberId: member.memberId, name: member.name, email: member.email } : null,
-      staff: staff ? { name: staff.name, role: staff.role, venueIds: staff.venueIds } : null,
+      // The email is the caller's own, and the admin pages show it so
+      // somebody with two accounts can tell which one they are signed into.
+      staff: staff ? { name: staff.name, email: staff.email, role: staff.role, venueIds: staff.venueIds } : null,
     });
   } catch (error) {
     return errorResponse(request, error);

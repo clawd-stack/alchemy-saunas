@@ -70,6 +70,10 @@ async function loadDay() {
       return;
     }
     notice(messages, 'bad', error.message);
+  } finally {
+    // Down whatever happened, so a failed refresh mid-shift shows the error
+    // rather than a spinner that never stops.
+    document.getElementById('page-loading')?.setAttribute('hidden', '');
   }
 }
 
