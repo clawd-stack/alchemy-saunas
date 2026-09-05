@@ -74,12 +74,51 @@ class ResendProvider implements EmailProvider {
   }
 }
 
+/**
+ * SMTP, for sending through a mailbox the business already owns.
+ *
+ * The reason this exists: Postmark and Resend both require signing up for a
+ * new vendor, whereas Alchemy already sends mail from Google Workspace. With
+ * an app password this needs no new account, no new domain reputation, and no
+ * monthly cost, and messages come from the address members already recognise.
+ *
+ * Gmail's limits (a couple of thousand recipients a day on Workspace) are far
+ * above what one venue's bookings will ever generate.
+ */
+class SmtpProvider implements EmailProvider {
+  name = 'smtp';
+  async send(message: EmailMessage): Promise<{ providerId: string | null }> {
+    // Imported lazily so the dependency is only loaded when SMTP is selected,
+    // keeping it out of the bundle for deployments using an HTTP provider.
+    const nodemailer = await import('nodemailer');
+    const { host, port, user, pass, secure } = env.smtp;
+
+    const transport = nodemailer.createTransport({
+      host,
+      port,
+      secure,
+      auth: { user, pass },
+    });
+
+    const info = await transport.sendMail({
+      from: env.emailFrom,
+      to: message.to,
+      subject: message.subject,
+      text: message.text,
+      html: message.html,
+    });
+    return { providerId: info.messageId ?? null };
+  }
+}
+
 export function createProvider(): EmailProvider {
   switch (env.emailProvider) {
     case 'postmark':
       return new PostmarkProvider();
     case 'resend':
       return new ResendProvider();
+    case 'smtp':
+      return new SmtpProvider();
     default:
       return new ConsoleProvider();
   }

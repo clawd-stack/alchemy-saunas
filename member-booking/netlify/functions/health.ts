@@ -37,10 +37,19 @@ export default async (request: Request): Promise<Response> => {
     detail: process.env.HAPANA_API_KEY ? 'configured' : 'missing: running against the mock',
   });
 
+  const emailProvider = process.env.EMAIL_PROVIDER ?? 'console';
+  const emailConfigured =
+    emailProvider === 'smtp'
+      ? Boolean(process.env.SMTP_USER && process.env.SMTP_PASS)
+      : emailProvider !== 'console' && Boolean(process.env.EMAIL_API_KEY);
   checks.push({
     name: 'email_provider',
-    ok: (process.env.EMAIL_PROVIDER ?? 'console') !== 'console',
-    detail: process.env.EMAIL_PROVIDER ?? 'console (logs only, nothing is delivered)',
+    ok: emailConfigured,
+    detail: emailConfigured
+      ? `${emailProvider}, sending as ${process.env.EMAIL_FROM ?? 'the default from address'}`
+      : emailProvider === 'console'
+        ? 'console (logs only, nothing is delivered)'
+        : `${emailProvider} selected but its credentials are missing`,
   });
 
   if (context) {
