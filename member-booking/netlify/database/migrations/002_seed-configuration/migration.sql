@@ -29,8 +29,10 @@ insert into app_config (key, value, source_note) values
   ('booking_backend',          '"local"'::jsonb, 'local = Pattern B (this service owns the ringfenced inventory). hapana = Pattern A (Hapana holds all inventory). Switch once the write-capability question in PRD 9.1 is answered.')
 on conflict (key) do nothing;
 
--- Staff accounts. Replace the emails before go-live; sign-in is by magic link,
--- so no passwords are seeded.
+-- Staff accounts. These two addresses are PLACEHOLDERS and have not been
+-- confirmed: replace them with the venue's real addresses before go-live.
+-- Migration 003 adds a known-good admin so there is a working way in
+-- meanwhile. Sign-in is by magic link, so no passwords are seeded.
 insert into staff_users (email, display_name, role, venue_ids) values
   ('james@alchemysaunas.com.au', 'James Jordan', 'admin',   array['east-fremantle']),
   ('door.eastfremantle@alchemysaunas.com.au', 'East Fremantle Door', 'door', array['east-fremantle'])
