@@ -152,19 +152,30 @@ export async function sendQueued(
 /* Templates                                                           */
 /* ------------------------------------------------------------------ */
 
+/**
+ * The site's colours, on a light ground.
+ *
+ * The brand is near-black and the screens follow it, but a dark HTML email
+ * is the one place that does not travel: several clients invert or strip
+ * background colours and leave pale text on white. So the palette is the
+ * brand's, with the values the right way up for a mail client.
+ */
 const BRAND = {
-  name: 'Alchemy Saunas',
-  accent: '#1f4d46',
-  muted: '#5b6b68',
+  name: 'alchemy saunas',
+  ground: '#f4efe7',
+  ink: '#0c0a09',
+  accent: '#8a5a2b',
+  muted: '#796f64',
+  line: '#ddd3c6',
 };
 
 function layout(title: string, bodyHtml: string): string {
-  return `<!doctype html><html><body style="margin:0;background:#f6f4f0;font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#12211f">
-  <div style="max-width:560px;margin:0 auto;padding:32px 24px">
-    <p style="font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:${BRAND.muted};margin:0 0 24px">${BRAND.name}</p>
-    <h1 style="font-size:22px;line-height:1.3;margin:0 0 16px;color:${BRAND.accent}">${title}</h1>
+  return `<!doctype html><html><body style="margin:0;background:${BRAND.ground};font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:${BRAND.ink}">
+  <div style="max-width:560px;margin:0 auto;padding:40px 24px">
+    <p style="font-size:12px;letter-spacing:.32em;color:${BRAND.muted};margin:0 0 32px">${BRAND.name}</p>
+    <h1 style="font-family:Georgia,'Times New Roman',serif;font-style:italic;font-weight:400;font-size:28px;line-height:1.2;margin:0 0 20px;color:${BRAND.ink}">${title}</h1>
     ${bodyHtml}
-    <p style="font-size:12px;color:${BRAND.muted};margin-top:32px;border-top:1px solid #e2ded7;padding-top:16px">
+    <p style="font-size:12px;color:${BRAND.muted};margin-top:40px;border-top:1px solid ${BRAND.line};padding-top:20px;line-height:1.6">
       Alchemy East Fremantle. If you have a question about this booking, reply to this email or speak to the team at the venue.
     </p>
   </div></body></html>`;

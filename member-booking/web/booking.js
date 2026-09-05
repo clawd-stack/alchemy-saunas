@@ -195,14 +195,14 @@ function renderGuests() {
             onclick: () => { state.guests.splice(index, 1); renderGuests(); },
           }),
         ]),
-        el('div', { style: 'margin-top:10px' }, [
+        el('div', { style: 'margin-top:16px' }, [
           el('label', { for: `guest-name-${index}`, text: 'Name' }),
           el('input', {
             id: `guest-name-${index}`, type: 'text', value: guest.name, autocomplete: 'off',
             oninput: (event) => { state.guests[index].name = event.target.value; updateTotals(); },
           }),
         ]),
-        el('div', { style: 'margin-top:10px' }, [
+        el('div', { style: 'margin-top:16px' }, [
           el('label', { for: `guest-email-${index}`, text: 'Email' }),
           el('input', {
             id: `guest-email-${index}`, type: 'email', value: guest.email, autocomplete: 'off',
