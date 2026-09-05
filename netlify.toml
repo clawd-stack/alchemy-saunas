@@ -2,6 +2,17 @@
 # The Webflow site stays the public presentation layer; this project owns the API
 # and the three internal pages (booking embed, door list, admin config).
 
+# This file lives at the REPOSITORY ROOT deliberately.
+#
+# Netlify reads netlify.toml from the repo root. When it sat inside
+# member-booking/ the first deploy never found it: no build ran, no functions
+# were bundled, no database was provisioned, and the repository root was
+# published as static files. Keeping it here, with `base` pointing at the
+# subdirectory, is Netlify's documented monorepo layout and does not depend on
+# any setting being typed correctly in the UI.
+#
+# publish, functions and the build command below are all relative to `base`.
+
 [build]
   base = "member-booking"
   publish = "web"

@@ -8,11 +8,23 @@ in a chat transcript.
 | | Detail |
 |---|---|
 | **Code** | Merged to `main` (PR #1). CI green: 112 tests, 19 against a real Postgres. |
-| **Netlify site** | `alchemy-member-booking`, team Ragan. Site id `cdfc3250-6203-4e41-bb89-79c171e270f9`. URL will be `https://alchemy-member-booking.netlify.app`. |
+| **Netlify site** | `alchemy-booking`, team Ragan. Site id `cdfc3250-6203-4e41-bb89-79c171e270f9`. URL will be `https://alchemy-booking.netlify.app`. |
 | **Database** | Nothing to create. `@netlify/database` is a dependency, so Netlify DB provisions Postgres on the first build and applies `netlify/database/migrations/` in order before publishing. A failed migration blocks the publish. |
-| **Environment variables** | `SESSION_SECRET` (generated, stored as a secret), `PUBLIC_BASE_URL`, `ALLOWED_ORIGINS`, `DEFAULT_VENUE_ID`, `EMAIL_PROVIDER=console` are all set on the site. |
-| **Build settings** | Already in `netlify.toml`: base `member-booking`, build `npm run typecheck`, publish `web`, functions `netlify/functions`. Nothing to type in the UI. |
+| **Environment variables** | `SESSION_SECRET` (generated), `PUBLIC_BASE_URL`, `ALLOWED_ORIGINS`, `DEFAULT_VENUE_ID`, `EMAIL_PROVIDER=console` are set on the site and verified by reading them back. They are stored as ordinary variables, not secret-flagged: variable scoping and the secret flag are paid-plan features on Netlify, and requesting them makes the write silently do nothing. Mark `SESSION_SECRET` secret in the UI if the plan is ever upgraded. |
+| **Build settings** | In `netlify.toml` at the **repository root**: base `member-booking`, build `npm run typecheck`, publish `web`, functions `netlify/functions`. Leave every UI build field empty so this file stays authoritative. |
 | **Admin access** | `clawd@ragan.com.au` is seeded as an admin, so there is a working way into the config and door list screens on first deploy. |
+
+## A trap worth knowing about
+
+The first deploy reported "ready" while having done nothing useful: no build
+ran, no functions were bundled, no database was provisioned, and the repository
+root was published as a folder of static files. The cause was `netlify.toml`
+sitting in `member-booking/` rather than at the repository root, which is the
+only place Netlify reads it from.
+
+If a deploy ever finishes suspiciously fast, check the deploy summary for "No
+functions deployed" and "No header rules processed". Both mean the
+configuration was not applied, whatever the deploy status says.
 
 ## Remaining, and who has to do it
 
@@ -25,11 +37,12 @@ every push to `main` then deploys on its own.
 
 On app.netlify.com, phone browser is fine:
 
-1. Open the **alchemy-member-booking** site.
+1. Open the **alchemy-booking** site.
 2. **Project configuration → Build & deploy → Link repository** (on a new site
    this may appear as "Import an existing project" or "Link to Git").
 3. Choose GitHub, then `clawd-stack/alchemy-saunas`, branch `main`.
-4. Leave every build setting alone. `netlify.toml` already declares them.
+4. Leave every build setting empty, including Base directory and Package
+   directory. `netlify.toml` at the repository root declares all of them.
 5. Deploy.
 
 The first build provisions the database and applies all three migrations.
@@ -49,7 +62,7 @@ To fix, on a phone:
 
 1. Sign up at resend.com (free tier covers this volume) or postmarkapp.com.
 2. Create an API key.
-3. In Netlify → **alchemy-member-booking → Environment variables**, set:
+3. In Netlify → **alchemy-booking → Environment variables**, set:
    - `EMAIL_PROVIDER` = `resend` (or `postmark`)
    - `EMAIL_API_KEY` = the key
    - `EMAIL_FROM` = a verified sender, e.g. `Alchemy Saunas <bookings@alchemysaunas.com.au>`
@@ -78,7 +91,7 @@ default and needs read access only.
 ### 4. Webflow page
 
 Create the private page and embed `web/booking.html`, or iframe it from
-`https://alchemy-member-booking.netlify.app/booking.html`. `netlify.toml`
+`https://alchemy-booking.netlify.app/booking.html`. `netlify.toml`
 already allows framing from the Alchemy domains and blocks everyone else.
 
 ### 5. Two decisions, not technical
@@ -92,7 +105,7 @@ already allows framing from the Alchemy domains and blocks everyone else.
 
 ## Checking it worked
 
-Once the site has built, `https://alchemy-member-booking.netlify.app/api/health`
+Once the site has built, `https://alchemy-booking.netlify.app/api/health`
 reports every one of the above. `readyForMembers` stays false until the email
 provider and Hapana credentials are set.
 
