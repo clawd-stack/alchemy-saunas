@@ -230,8 +230,9 @@ describe('bootstrap admin from the environment', () => {
 
     const body = await response.json();
     expect(body.role).toBe('admin');
-    // A way in once, not a standing password.
-    expect(body.mustChangePassword).toBe(true);
+    // A standing password, not a one-time way in: this account exists so
+    // somebody can sign in with a known password without a round trip.
+    expect(body.mustChangePassword).toBe(false);
   });
 
   it('never overwrites a password somebody has since chosen', async () => {
