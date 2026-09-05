@@ -5,10 +5,14 @@
    anything invented here: a Roman bathhouse built inside the heritage
    Royal George, exposed brick and limestone, oversized archways, seven
    metre ceilings, diffused light on water. So: a warm limestone ground,
-   deep shadowed ink, a fired-brick accent, arch-topped tiles, and much
-   more air than a booking form usually gets. The venue is designed to
-   slow you down before you have done anything, and a screen that opens
-   with a dense grid works against that.
+   deep shadowed ink, a fired-brick accent, and much more air than a
+   booking form usually gets. The venue is designed to slow you down
+   before you have done anything, and a screen that opens with a dense
+   grid works against that.
+
+   An earlier pass took the archways literally and gave the session tiles
+   a domed top. On a grid of times it read as a bulge rather than an
+   arch, so the motif is carried by space and proportion instead.
 
    Everything is a token. The palette below is drawn from that material
    description, not from the marketing team's swatches, so when the real
@@ -40,8 +44,6 @@
 
   --radius: 12px;
   --radius-sm: 8px;
-  /* The archway, used sparingly: session tiles and the page header rule. */
-  --radius-arch: 999px 999px var(--radius-sm) var(--radius-sm);
 
   --shadow: 0 1px 2px rgba(34, 28, 23, 0.05), 0 10px 30px rgba(34, 28, 23, 0.06);
   --shadow-lift: 0 2px 6px rgba(34, 28, 23, 0.08), 0 18px 44px rgba(34, 28, 23, 0.1);
@@ -231,19 +233,17 @@ h3 { font-size: 16px; margin: 0 0 8px; }
   margin: 0 0 32px;
 }
 
-/* The arch: a hairline rule under the page title, echoing the limestone
-   archways over the pools. */
-.page-head { position: relative; padding-bottom: 28px; margin-bottom: 8px; }
+/* A short brick rule under the page title. */
+.page-head { position: relative; padding-bottom: 24px; margin-bottom: 8px; }
 .page-head::after {
   content: '';
   position: absolute;
   left: 0;
   bottom: 0;
-  width: 72px;
-  height: 10px;
-  border: 1px solid var(--line);
-  border-bottom: 0;
-  border-radius: 999px 999px 0 0;
+  width: 56px;
+  height: 2px;
+  background: var(--accent);
+  border-radius: 2px;
 }
 
 /* Surfaces --------------------------------------------------------- */
@@ -357,18 +357,18 @@ button {
 .slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
 .slot {
   text-align: left;
-  padding: 16px 14px 14px;
+  padding: 14px;
   border: 1px solid var(--line);
-  /* The archway again, on the one element the page is really about. */
-  border-radius: var(--radius-arch);
+  border-radius: var(--radius);
   background: var(--card);
   cursor: pointer;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
 }
 .slot:hover:not(:disabled) { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); box-shadow: var(--shadow); }
 .slot[aria-pressed='true'] { border-color: var(--accent); background: var(--accent-soft); }
 .slot:disabled { opacity: 0.42; cursor: not-allowed; }
-.slot .time { font-weight: 700; font-size: 17px; font-family: var(--font-display); }
-.slot .left { font-size: 13px; color: var(--ink-soft); }
+.slot .time { font-weight: 600; font-size: 18px; letter-spacing: -0.01em; }
+.slot .left { font-size: 13px; color: var(--ink-soft); margin-top: 2px; }
 
 /* Tables ----------------------------------------------------------- */
 

@@ -1,6 +1,7 @@
 import { api, el, money, notice } from '/api.js';
 import { mountSignIn } from '/signin.js';
 import { mountNav } from '/nav.js';
+import { renderMyBookings } from '/bookings-list.js';
 
 mountNav();
 
@@ -270,56 +271,8 @@ document.getElementById('confirm').addEventListener('click', async () => {
 /* ---------------------------------------------------------------- */
 
 async function loadMyBookings() {
-  try {
-    const data = await api.get('/api/bookings');
-    const live = data.bookings.filter((booking) => booking.status === 'confirmed');
-    myBookings.innerHTML = '';
-
-    if (live.length === 0) {
-      myBookings.append(el('p', { class: 'muted', text: 'Nothing booked yet.' }));
-      return;
-    }
-
-    for (const booking of live) {
-      const guests = booking.guests.filter((guest) => guest.status === 'confirmed');
-      myBookings.append(
-        el('div', { class: 'card' }, [
-          el('div', { class: 'row row--between' }, [
-            el('div', {}, [
-              el('strong', { text: booking.sessionLabel }),
-              el('p', { class: 'muted', style: 'margin:4px 0 0', text: `${booking.spotsTotal} spot${booking.spotsTotal === 1 ? '' : 's'}${guests.length ? `, with ${guests.map((g) => g.name).join(', ')}` : ''}` }),
-              booking.amountOwedAud > 0
-                ? el('p', { class: 'muted', style: 'margin:4px 0 0', text: `${money(booking.amountOwedAud)} to pay by card at the venue.` })
-                : null,
-            ]),
-            booking.canCancel
-              ? el('button', {
-                  class: 'btn-danger btn-small', type: 'button', text: 'Cancel',
-                  onclick: () => cancelBooking(booking.bookingId),
-                })
-              : el('span', { class: 'pill pill--quiet', text: 'Cancellation closed' }),
-          ]),
-          guests.length
-            ? el('p', { class: 'hint', style: 'margin-top:12px', text: guests.map((g) => `${g.name}: waiver ${g.waiverStatus === 'signed' ? 'signed' : 'not signed yet'}`).join(' · ') })
-            : null,
-        ]),
-      );
-    }
-  } catch (error) {
-    myBookings.innerHTML = '';
-    myBookings.append(el('p', { class: 'muted', text: error.message }));
-  }
-}
-
-async function cancelBooking(bookingId) {
-  if (!confirm('Cancel this booking? Any guest spots are cancelled too, and your guests will be emailed.')) return;
-  try {
-    const result = await api.post('/api/bookings/cancel', { bookingId });
-    notice(messages, 'good', result.message);
-    await loadSessions();
-  } catch (error) {
-    notice(messages, 'warn', error.message);
-  }
+  await renderMyBookings(myBookings, { messages, onChanged: loadSessions });
 }
 
 loadSessions();
+
