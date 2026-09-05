@@ -133,3 +133,53 @@ export function createHapanaAdapter(): MembershipSource {
     },
   };
 }
+
+/**
+ * A membership source that answers nothing, for a deployment with no Hapana
+ * credentials configured.
+ *
+ * This replaces an earlier guard that refused to build the request context at
+ * all when HAPANA_API_KEY was missing in production. The intent was right, and
+ * the effect was not: membership is resolved once per request for every
+ * endpoint, so a missing key took down sign-in, the door list and the very
+ * configuration screen an operator would use to fix it. A deployment cannot
+ * bootstrap itself out of a failure that blocks the whole API.
+ *
+ * The safety property the guard existed for is preserved exactly, and by a
+ * stricter route. The danger was serving members from the mock, which answers
+ * "yes, a member" to anything. This answers nothing at all: every lookup raises
+ * the same outage the codebase already knows how to degrade through, so
+ * verifyMemberByEmail falls through to the cache, finds it empty, and refuses.
+ * No member signs in and no booking is taken, while staff and admin, who never
+ * touch this source, can sign in and set the key.
+ */
+export function createUnavailableMembership(reason: string): MembershipSource {
+  const refuse = (): never => {
+    throw new HapanaUnavailable(reason);
+  };
+
+  return {
+    name: 'unavailable',
+    async findMemberByEmail(): Promise<HapanaMember | null> {
+      return refuse();
+    },
+    async getMember(): Promise<HapanaMember | null> {
+      return refuse();
+    },
+    async listMembers(): Promise<HapanaMember[]> {
+      return refuse();
+    },
+    async listSessions(): Promise<HapanaSession[]> {
+      return refuse();
+    },
+    async publicBookedFor(): Promise<number | null> {
+      return refuse();
+    },
+    async createBooking(): Promise<HapanaBookingResult> {
+      return refuse();
+    },
+    async cancelBooking(): Promise<void> {
+      return refuse();
+    },
+  };
+}
