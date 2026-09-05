@@ -13,13 +13,13 @@ mountNav();
 
 const messages = document.getElementById('messages');
 const content = document.getElementById('content');
-const lede = document.getElementById('lede');
 
 const token = location.hash.slice(1);
 
 async function load() {
   if (!token) {
-    lede.textContent = 'This link is incomplete. Please open the link from your email.';
+    content.innerHTML = '';
+    notice(messages, 'warn', 'This link is incomplete. Open it from your email.');
     return;
   }
 
@@ -27,18 +27,24 @@ async function load() {
     const data = await api.get(`/api/waiver?token=${encodeURIComponent(token)}`);
     render(data);
   } catch (error) {
-    lede.textContent =
+    content.innerHTML = '';
+    notice(
+      messages,
+      'warn',
       error.code === 'NOT_FOUND'
-        ? 'This waiver link is not valid any more. If your visit is still going ahead, you can sign at the venue.'
-        : error.message;
+        ? 'This link is no longer valid. You can sign at the venue.'
+        : error.message,
+    );
   }
 }
 
 function render(data) {
   const { waiver, text } = data;
   document.getElementById('title').textContent = text.title;
-  lede.textContent = `${waiver.guestName}, you are booked in for ${waiver.sessionLabel} at ${waiver.venueName}.`;
   content.innerHTML = '';
+  content.append(
+    el('p', { class: 'sub', style: 'margin:-16px 0 24px', text: `${waiver.guestName} · ${waiver.sessionLabel}` }),
+  );
 
   if (text.placeholder) {
     // Better to say so plainly than to let anyone believe placeholder text is
@@ -89,7 +95,6 @@ function render(data) {
         el('span', { text: text.declaration }),
       ]),
       el('button', { class: 'btn-primary', id: 'sign', type: 'button', text: 'Sign waiver' }),
-      el('p', { class: 'hint', text: 'Prefer to sign in person? The team can sort it out at the door.' }),
     ]),
   );
 

@@ -1,47 +1,23 @@
-import { api, el, notice } from '/api.js';
-import { mountSignIn, showPasswordChange } from '/signin.js';
+import { api, el, notice } from '/ui.js';
 import { mountNav } from '/nav.js';
+import { mountSignIn, showPasswordChange } from '/signin.js';
+import { renderForm, renderSummary } from '/admin/config.js';
+import { renderMembers } from '/admin/members.js';
+import { renderCredentials } from '/admin/accounts.js';
+import { renderStaff } from '/admin/staff.js';
+import { renderAudit } from '/admin/audit.js';
 
 mountNav();
 
 /**
- * Configuration screen, PRD 5.7.
- *
- * The bound on the member channel allocation is checked here for immediate
- * feedback and again in the API, which is the one that counts. A UI check
- * alone would be advice; the server check is the rule.
+ * The admin screen is a shell. Each section owns its own loading, failure and
+ * refresh, so one section being down does not blank the others: an admin whose
+ * Hapana key is missing still needs the settings form to set it.
  */
 
 const messages = document.getElementById('messages');
 const signinCard = document.getElementById('signin-card');
 const adminSection = document.getElementById('admin-section');
-const form = document.getElementById('config-form');
-const warningsEl = document.getElementById('warnings');
-const summaryEl = document.getElementById('capacity-summary');
-const auditEl = document.getElementById('audit');
-
-const FIELDS = [
-  { key: 'member_channel_capacity', label: 'Spots per hour', type: 'number', field: 'memberChannelCapacity',
-    hint: 'How many spots this channel sells per session. This is the limit that governs bookings.' },
-  { key: 'venue_maximum', label: 'Venue ceiling (optional)', type: 'number', field: 'venueMaximum', optional: true,
-    hint: 'Leave blank for no venue-wide ceiling, which is the default. Set a number only if a documented occupancy limit must be held across all channels, and record its source below.' },
-  { key: 'hapana_public_capacity', label: 'Hapana public capacity', type: 'number', field: 'hapanaPublicCapacity',
-    hint: 'Only used to validate the allocation against a venue ceiling. Ignored when no ceiling is set.' },
-  { key: 'booking_window_days', label: 'Booking window (days)', type: 'number', field: 'bookingWindowDays' },
-  { key: 'cancellation_cutoff_hours', label: 'Cancellation cutoff (hours)', type: 'number', field: 'cancellationCutoffHours' },
-  { key: 'max_guests_per_member', label: 'Guests per member', type: 'number', field: 'maxGuestsPerMember' },
-  { key: 'guest_price', label: 'Guest price (AUD)', type: 'number', field: 'guestPrice',
-    hint: 'Display only. Collected by EFTPOS at the door; nothing is charged in software.' },
-  { key: 'session_length_minutes', label: 'Session length (minutes)', type: 'number', field: 'sessionLengthMinutes' },
-  { key: 'booking_backend', label: 'Booking backend', type: 'select', field: 'bookingBackend',
-    options: [
-      { value: 'local', label: 'Pattern B: this service holds the ringfenced inventory' },
-      { value: 'hapana', label: 'Pattern A: Hapana holds all inventory' },
-    ],
-    hint: 'Switch to Pattern A only once Hapana booking creation is confirmed working.' },
-];
-
-let current = null;
 
 mountSignIn({
   formId: 'signin-form',
@@ -53,46 +29,52 @@ mountSignIn({
 });
 
 async function load() {
+  let data;
   try {
-    const data = await api.get('/api/admin/config');
-    current = data.config;
-    signinCard.classList.add('hidden');
-    adminSection.classList.remove('hidden');
-
-    warningsEl.innerHTML = '';
-    for (const warning of data.warnings) {
-      warningsEl.append(el('div', { class: 'notice notice--warn', text: warning }));
-    }
-
-    renderOwnAccount();
-    renderEmailCheck();
-    renderSummary(data.config, data.entries);
-    renderForm(data.config, data.entries);
-    loadMembers();
-    loadCredentials();
-    loadStaff();
-    loadAudit();
+    data = await api.get('/api/admin/config');
   } catch (error) {
     if (error.code === 'UNAUTHENTICATED' || error.code === 'FORBIDDEN') {
       signinCard.classList.remove('hidden');
       adminSection.classList.add('hidden');
       return;
     }
-    notice(messages, 'bad', error.message);
+    return notice(messages, 'bad', error.message);
   }
+
+  signinCard.classList.add('hidden');
+  adminSection.classList.remove('hidden');
+
+  const warnings = document.getElementById('warnings');
+  warnings.innerHTML = '';
+  for (const warning of data.warnings) {
+    warnings.append(el('div', { class: 'notice notice--warn', text: warning }));
+  }
+
+  renderSummary(document.getElementById('capacity-summary'), data.config);
+  renderForm(document.getElementById('config-form'), data.config, data.entries, { messages, onSaved: load });
+  renderOwnAccount();
+  renderEmailCheck();
+
+  // Each section refreshes only itself. A cancelled booking should not
+  // re-render the settings form under the admin's cursor.
+  refresh('members', renderMembers);
+  refresh('credentials', renderCredentials);
+  refresh('staff', renderStaff);
+  renderAudit(document.getElementById('audit'));
 }
 
-/** Changing your own password, separate from issuing anybody else's. */
+function refresh(id, render) {
+  const host = document.getElementById(id);
+  const reload = () => render(host, { messages, reload });
+  return reload();
+}
+
 function renderOwnAccount() {
-  let host = document.getElementById('own-account');
-  if (!host) {
-    host = el('div', { class: 'card', id: 'own-account' });
-    warningsEl.after(host);
-  }
+  const host = document.getElementById('own-account');
   host.innerHTML = '';
 
-  const button = el('button', { class: 'btn-quiet btn-small', type: 'button', text: 'Change my password' });
-  button.addEventListener('click', () => showPasswordChange({ messages, onDone: load }));
+  const change = el('button', { class: 'btn-quiet btn-small', type: 'button', text: 'Change password' });
+  change.addEventListener('click', () => showPasswordChange({ messages, onDone: load }));
 
   const out = el('button', { class: 'btn-quiet btn-small', type: 'button', text: 'Sign out' });
   out.addEventListener('click', async () => {
@@ -100,691 +82,35 @@ function renderOwnAccount() {
     location.reload();
   });
 
-  host.append(
-    el('div', { class: 'row row--between' }, [
-      el('strong', { text: 'Your account' }),
-      el('div', { class: 'row', style: 'gap:6px' }, [button, out]),
-    ]),
-  );
+  host.append(el('div', { class: 'row row--tight' }, [change, out]));
 }
 
 /**
- * One-tap verification that email actually works. Everywhere else a send
- * failure is swallowed so it cannot take a booking down with it, which is
- * right in production and unhelpful during setup: this is the one place that
- * says plainly whether the credentials are good.
+ * Email fails quietly everywhere else so a send cannot take a booking down
+ * with it. This is the one place that says plainly whether it works.
  */
 function renderEmailCheck() {
-  let host = document.getElementById('email-check');
-  if (!host) {
-    host = el('div', { class: 'card', id: 'email-check' });
-    warningsEl.after(host);
-  }
+  const host = document.getElementById('email-check');
   host.innerHTML = '';
-  host.append(
-    el('div', { class: 'row row--between' }, [
-      el('div', {}, [
-        el('strong', { text: 'Email' }),
-        el('p', { class: 'hint', style: 'margin:4px 0 0', text: 'Sends a real message to your own address and reports what the provider said.' }),
-      ]),
-      el('button', { class: 'btn-quiet btn-small', id: 'send-test-email', type: 'button', text: 'Send test email' }),
-    ]),
-    el('div', { id: 'email-check-result' }),
-  );
 
-  document.getElementById('send-test-email').addEventListener('click', async (event) => {
-    const button = event.target;
-    const target = document.getElementById('email-check-result');
+  const button = el('button', { class: 'btn-quiet btn-small', type: 'button', text: 'Send test email' });
+  const result = el('div');
+
+  button.addEventListener('click', async () => {
     button.disabled = true;
-    button.textContent = 'Sending…';
-    target.innerHTML = '';
+    result.innerHTML = '';
     try {
-      const result = await api.post('/api/admin/test-email', {});
-      notice(target, result.ok ? 'good' : 'warn', result.message);
-      if (result.error) {
-        target.append(el('p', { class: 'hint', style: 'margin-top:8px', text: `Provider said: ${result.error}` }));
-      }
+      const outcome = await api.post('/api/admin/test-email', {});
+      notice(result, outcome.ok ? 'good' : 'warn', outcome.message);
+      if (outcome.error) result.append(el('p', { class: 'hint', text: outcome.error }));
     } catch (error) {
-      notice(target, 'bad', error.message);
-    } finally {
-      button.disabled = false;
-      button.textContent = 'Send test email';
-    }
-  });
-}
-
-function renderSummary(config, entries) {
-  const source = entries.find((entry) => entry.key === 'venue_maximum')?.sourceNote;
-  const tiles = [
-    el('div', {}, [el('strong', { text: String(config.memberChannelCapacity) }), 'spots per hour']),
-    el('div', {}, [el('strong', { text: String(config.maxGuestsPerMember) }), 'guests per member']),
-    el('div', {}, [el('strong', { text: `$${config.guestPrice}` }), 'per guest, at the door']),
-  ];
-  if (config.venueMaximum !== null) {
-    tiles.push(el('div', {}, [el('strong', { text: String(config.venueMaximum) }), 'venue ceiling']));
-  }
-
-  summaryEl.innerHTML = '';
-  summaryEl.append(
-    el('div', { class: 'totals' }, tiles),
-    el('p', {
-      class: 'hint',
-      style: 'margin-top:14px',
-      text:
-        config.venueMaximum === null
-          ? 'No venue-wide ceiling is enforced. Bookings are limited by the spots per hour above.'
-          : `Venue ceiling source: ${source || 'not recorded'}`,
-    }),
-  );
-}
-
-function renderForm(config, entries) {
-  form.innerHTML = '';
-
-  for (const spec of FIELDS) {
-    const value = config[spec.field];
-    const control =
-      spec.type === 'select'
-        ? el('select', { id: spec.key, name: spec.key },
-            spec.options.map((option) =>
-              el('option', { value: option.value, selected: option.value === value, text: option.label }),
-            ))
-        : el('input', {
-            id: spec.key,
-            name: spec.key,
-            type: 'text',
-            inputmode: 'numeric',
-            placeholder: spec.optional ? 'Leave blank for none' : '',
-            value: value === null || value === undefined ? '' : String(value),
-          });
-
-    form.append(
-      el('div', {}, [
-        el('label', { for: spec.key, text: spec.label }),
-        control,
-        spec.hint ? el('p', { class: 'hint', text: spec.hint }) : null,
-      ]),
-    );
-  }
-
-  const waiver = config.waiverText ?? { clauses: [], declaration: '', termsUrl: '', version: '' };
-  form.append(
-    el('h2', { style: 'margin-bottom:4px', text: 'Guest waiver' }),
-    el('p', { class: 'hint', style: 'margin-top:0', text: 'Shown to every guest before they visit. Changes take effect immediately. Bump the version whenever the wording changes: it is stamped on every signature, so which text a guest agreed to stays provable.' }),
-    el('div', {}, [
-      el('label', { for: 'waiver_version_field', text: 'Waiver version' }),
-      el('input', { id: 'waiver_version_field', type: 'text', value: waiver.version ?? '' }),
-    ]),
-    el('div', {}, [
-      el('label', { for: 'waiver_terms_url', text: 'Terms of Use link (the binding document)' }),
-      el('input', { id: 'waiver_terms_url', type: 'text', value: waiver.termsUrl ?? '' }),
-    ]),
-    el('div', {}, [
-      el('label', { for: 'waiver_clauses', text: 'Clauses, one per line as "Heading | text"' }),
-      el('textarea', {
-        id: 'waiver_clauses',
-        rows: '10',
-        style: 'width:100%;padding:11px 12px;font:inherit;border:1px solid var(--line);border-radius:8px',
-      }, [(waiver.clauses ?? []).map((clause) => `${clause.heading} | ${clause.body}`).join('\n')]),
-    ]),
-    el('div', {}, [
-      el('label', { for: 'waiver_declaration', text: 'Declaration the guest agrees to' }),
-      el('input', { id: 'waiver_declaration', type: 'text', value: waiver.declaration ?? '' }),
-    ]),
-    el('div', {}, [
-      el('label', { for: 'sourceNote', text: 'Documented source (required when setting a venue ceiling)' }),
-      el('input', { id: 'sourceNote', type: 'text', placeholder: 'e.g. Certificate of approval TOEF-2026-0142, Town of East Fremantle' }),
-    ]),
-    el('div', { class: 'row' }, [
-      el('button', { class: 'btn-primary', type: 'submit', text: 'Save changes' }),
-      el('button', { class: 'btn-quiet', type: 'button', text: 'Reset', onclick: () => renderForm(current, entries) }),
-    ]),
-  );
-}
-
-form.addEventListener('submit', async (event) => {
-  event.preventDefault();
-  const updates = {};
-  for (const spec of FIELDS) {
-    const raw = document.getElementById(spec.key).value.trim();
-    let value;
-    if (spec.type === 'select') {
-      value = raw;
-    } else if (spec.optional && raw === '') {
-      value = null;
-    } else {
-      value = Number(raw);
-      if (raw === '' || Number.isNaN(value)) {
-        return notice(messages, 'warn', `${spec.label} must be a number.`);
-      }
-    }
-    if (value !== current[spec.field]) updates[spec.key] = value;
-  }
-
-  // Waiver wording, edited as one clause per line: "Heading | body".
-  const waiverBox = document.getElementById('waiver_clauses');
-  if (waiverBox) {
-    const clauses = waiverBox.value
-      .split('\n')
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .map((line) => {
-        const split = line.indexOf('|');
-        return split === -1
-          ? { heading: '', body: line }
-          : { heading: line.slice(0, split).trim(), body: line.slice(split + 1).trim() };
-      });
-    const next = {
-      ...current.waiverText,
-      clauses,
-      termsUrl: document.getElementById('waiver_terms_url').value.trim(),
-      declaration: document.getElementById('waiver_declaration').value.trim(),
-      version: document.getElementById('waiver_version_field').value.trim(),
-    };
-    if (JSON.stringify(next) !== JSON.stringify(current.waiverText)) {
-      updates.waiver_text = next;
-      // The version is stamped on every signature, so keep the two in step.
-      if (next.version !== current.waiverVersion) updates.waiver_version = next.version;
-    }
-  }
-
-  if (Object.keys(updates).length === 0) {
-    return notice(messages, 'info', 'Nothing changed.');
-  }
-
-  try {
-    const result = await api.patch('/api/admin/config', {
-      updates,
-      sourceNote: document.getElementById('sourceNote').value.trim() || null,
-    });
-    notice(messages, 'good', result.message);
-    await load();
-  } catch (error) {
-    const issues = error.payload?.issues ?? null;
-    notice(messages, 'bad', issues ? issues.map((issue) => issue.message).join(' ') : error.message);
-  }
-});
-
-async function loadAudit() {
-  try {
-    const data = await api.get('/api/admin/audit');
-    auditEl.innerHTML = '';
-
-    if (data.ceilingBreaches > 0) {
-      auditEl.append(
-        el('div', { class: 'notice notice--bad', text: `${data.ceilingBreaches} audit entries show occupancy above the venue maximum. Investigate before taking further bookings.` }),
-      );
-    }
-
-    if (data.rows.length === 0) {
-      auditEl.append(el('p', { class: 'muted', text: 'No activity in the last seven days.' }));
-      return;
-    }
-
-    const body = el('tbody');
-    for (const row of data.rows.slice(-60).reverse()) {
-      body.append(
-        el('tr', {}, [
-          el('td', { text: new Date(row.createdAt).toLocaleString('en-AU') }),
-          el('td', { text: row.refusalCode ? `${row.action} (${row.refusalCode})` : row.action }),
-          el('td', { text: String(row.spotsDelta) }),
-          el('td', { text: `${row.memberChannelBookedAfter} / ${row.memberChannelCapacity}` }),
-          el('td', { text: `${row.venueTotalBookedAfter} / ${row.venueMaximumAtTime}` }),
-        ]),
-      );
-    }
-
-    auditEl.append(
-      el('div', { class: 'scroll-x' }, [
-        el('table', {}, [
-          el('thead', {}, [
-            el('tr', {}, [
-              el('th', { text: 'When' }),
-              el('th', { text: 'Action' }),
-              el('th', { text: 'Spots' }),
-              el('th', { text: 'Channel after' }),
-              el('th', { text: 'Venue after' }),
-            ]),
-          ]),
-          body,
-        ]),
-      ]),
-    );
-  } catch (error) {
-    auditEl.innerHTML = '';
-    auditEl.append(el('p', { class: 'muted', text: error.message }));
-  }
-}
-
-/**
- * Members.
- *
- * Adding somebody here and issuing them a password are two halves of one act,
- * so the form does both and the list says plainly when a member has no way to
- * sign in. Splitting them across two screens is how half a member gets made.
- */
-async function loadMembers() {
-  const card = document.getElementById('members');
-  try {
-    const data = await api.get('/api/admin/members');
-    card.innerHTML = '';
-
-    if (!data.hapanaConfigured) {
-      card.append(
-        el('div', {
-          class: 'notice notice--warn',
-          text: 'No Hapana key is set, so this list is the only membership the channel knows about. Once the key is added, Hapana is checked first and these entries become the fallback.',
-        }),
-      );
-    }
-
-    if (data.members.length === 0) {
-      card.append(el('p', { class: 'muted', text: 'No members added by hand yet.' }));
-    } else {
-      const body = el('tbody');
-      for (const member of data.members) {
-        body.append(
-          el('tr', { class: member.status === 'active' ? '' : 'muted' }, [
-            el('td', {}, [
-              el('strong', { text: member.name }),
-              el('div', { class: 'hint', text: member.email }),
-            ]),
-            el('td', {}, [
-              el('span', {
-                class: `pill pill--${member.status === 'active' ? 'good' : 'warn'}`,
-                text: member.status,
-              }),
-            ]),
-            el('td', {}, [
-              member.canSignIn
-                ? el('span', { class: 'muted', text: 'Has a password' })
-                : el('span', { class: 'pill pill--bad', text: 'No password: cannot sign in' }),
-            ]),
-            el('td', {}, memberActions(member)),
-          ]),
-        );
-      }
-      card.append(
-        el('div', { class: 'scroll-x' }, [
-          el('table', {}, [
-            el('thead', {}, [
-              el('tr', {}, [
-                el('th', { text: 'Member' }),
-                el('th', { text: 'Status' }),
-                el('th', { text: 'Sign-in' }),
-                el('th', { text: '' }),
-              ]),
-            ]),
-            body,
-          ]),
-        ]),
-      );
-    }
-
-    card.append(memberForm());
-  } catch (error) {
-    card.innerHTML = '';
-    card.append(
-      el('p', { class: 'muted', text: error.code === 'FORBIDDEN' ? 'Only an admin can manage members.' : error.message }),
-    );
-  }
-}
-
-function memberActions(member) {
-  const active = member.status === 'active';
-  const toggle = el('button', { class: 'btn-quiet btn-small', type: 'button', text: active ? 'Pause' : 'Reactivate' });
-  toggle.addEventListener('click', async () => {
-    toggle.disabled = true;
-    try {
-      const result = await api.patch('/api/admin/members', {
-        memberId: member.memberId,
-        status: active ? 'paused' : 'active',
-      });
-      notice(messages, 'good', result.message);
-      await loadMembers();
-    } catch (error) {
-      notice(messages, 'bad', error.message);
-      toggle.disabled = false;
-    }
-  });
-
-  const remove = el('button', { class: 'btn-quiet btn-small', type: 'button', text: 'Remove' });
-  remove.addEventListener('click', async () => {
-    remove.disabled = true;
-    try {
-      const result = await api.del('/api/admin/members', { memberId: member.memberId });
-      notice(messages, 'good', result.message);
-      await loadMembers();
-    } catch (error) {
-      notice(messages, 'bad', error.message);
-      remove.disabled = false;
-    }
-  });
-
-  return el('div', { class: 'row', style: 'gap:6px' }, [toggle, remove]);
-}
-
-function memberForm() {
-  const first = el('input', { type: 'text', placeholder: 'First name' });
-  const last = el('input', { type: 'text', placeholder: 'Last name' });
-  const email = el('input', { type: 'email', required: 'required', placeholder: 'member@example.com', autocomplete: 'off' });
-
-  const form = el('form', { class: 'stack', style: 'margin-top:18px' }, [
-    el('h3', { style: 'margin:0', text: 'Add a member' }),
-    el('p', { class: 'hint', style: 'margin:0', text: 'Creates the membership and a password in one step. The password is shown once.' }),
-    el('div', { class: 'row' }, [
-      el('div', { style: 'flex:1;min-width:140px' }, [el('label', { text: 'First name' }), first]),
-      el('div', { style: 'flex:1;min-width:140px' }, [el('label', { text: 'Last name' }), last]),
-    ]),
-    el('div', {}, [el('label', { text: 'Email' }), email]),
-    el('button', { class: 'btn-primary', type: 'submit', text: 'Add member' }),
-  ]);
-
-  form.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const button = form.querySelector('button');
-    const payload = {
-      email: email.value.trim(),
-      firstName: first.value.trim() || null,
-      lastName: last.value.trim() || null,
-    };
-    button.disabled = true;
-    try {
-      const created = await api.post('/api/admin/members', payload);
-      // Same ordering trap as issuing a password: the refresh replaces this
-      // card, so the panel carrying the password is attached after it.
-      await loadMembers();
-
-      const panel = el('div', { class: 'notice notice--good', style: 'margin-top:12px' }, [
-        el('p', { style: 'margin:0 0 8px', text: created.message }),
-      ]);
-      if (created.password) {
-        panel.append(
-          el('input', {
-            type: 'text',
-            readonly: 'readonly',
-            value: created.password,
-            style: 'font-family:ui-monospace,monospace;font-size:18px;letter-spacing:1px',
-            onclick: (event) => event.target.select(),
-          }),
-          el('p', { class: 'hint', style: 'margin:8px 0 0', text: `Send this to ${created.member.email} with the booking link. It cannot be shown again.` }),
-        );
-      }
-      document.getElementById('members').append(panel);
-      panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    } catch (error) {
-      notice(messages, 'bad', error.message);
+      notice(result, 'bad', error.message);
     } finally {
       button.disabled = false;
     }
   });
 
-  return form;
-}
-
-/**
- * Sign-in accounts.
- *
- * The one place a password is ever visible, and only in the instant it is
- * created. Everything else here talks about accounts, never about passwords,
- * because there is nothing to show: they are stored as scrypt hashes and the
- * API has no way to return one. Losing a password means issuing a new one.
- */
-async function loadCredentials() {
-  const card = document.getElementById('credentials');
-  try {
-    const data = await api.get('/api/admin/credentials');
-    card.innerHTML = '';
-
-    const issued = data.accounts.filter((a) => a.active && a.mustChange).length;
-    if (issued > 0) {
-      card.append(
-        el('div', {
-          class: 'notice notice--warn',
-          text: `${issued} account${issued === 1 ? ' is' : 's are'} still on a password issued from this screen. They are replaced automatically the first time each person signs in.`,
-        }),
-      );
-    }
-
-    const body = el('tbody');
-    for (const account of data.accounts) {
-      body.append(
-        el('tr', { class: account.active ? '' : 'muted' }, [
-          el('td', {}, [
-            el('strong', { text: account.email }),
-            el('div', { class: 'hint', text: account.role ? `${account.kind}, ${account.role}` : account.kind }),
-          ]),
-          el('td', {
-            text: account.active ? (account.mustChange ? 'Issued, not yet changed' : 'Active') : 'Suspended',
-          }),
-          el('td', {
-            text: account.lastLoginAt ? new Date(account.lastLoginAt).toLocaleDateString('en-AU') : 'Never signed in',
-          }),
-          el('td', {}, accountActions(account)),
-        ]),
-      );
-    }
-
-    card.append(
-      el('div', { class: 'scroll-x' }, [
-        el('table', {}, [
-          el('thead', {}, [
-            el('tr', {}, [
-              el('th', { text: 'Account' }),
-              el('th', { text: 'Status' }),
-              el('th', { text: 'Last sign-in' }),
-              el('th', { text: '' }),
-            ]),
-          ]),
-          body,
-        ]),
-      ]),
-      credentialForm(),
-    );
-  } catch (error) {
-    card.innerHTML = '';
-    card.append(
-      el('p', { class: 'muted', text: error.code === 'FORBIDDEN' ? 'Only an admin can manage sign-in accounts.' : error.message }),
-    );
-  }
-}
-
-function accountActions(account) {
-  const reset = el('button', { class: 'btn-quiet btn-small', type: 'button', text: 'Reset password' });
-  reset.addEventListener('click', () => issueCredential(account.email, reset));
-
-  const toggle = el('button', {
-    class: 'btn-quiet btn-small',
-    type: 'button',
-    text: account.active ? 'Suspend' : 'Restore',
-  });
-  toggle.addEventListener('click', async () => {
-    toggle.disabled = true;
-    try {
-      const result = await api.patch('/api/admin/credentials', { email: account.email, active: !account.active });
-      notice(messages, 'good', result.message);
-      await loadCredentials();
-    } catch (error) {
-      notice(messages, 'bad', error.message);
-      toggle.disabled = false;
-    }
-  });
-
-  return el('div', { class: 'row', style: 'gap:6px' }, [reset, toggle]);
-}
-
-function credentialForm() {
-  const email = el('input', { type: 'email', required: 'required', placeholder: 'member@example.com', autocomplete: 'off' });
-
-  const form = el('form', { class: 'stack', style: 'margin-top:16px' }, [
-    el('h3', { style: 'margin:0', text: 'Issue a password' }),
-    el('p', {
-      class: 'hint',
-      style: 'margin:0',
-      text: 'Creates the account if it does not exist, or resets an existing one. The password is generated, shown once, and cannot be retrieved afterwards.',
-    }),
-    el('div', {}, [el('label', { text: 'Email' }), email]),
-    el('button', { class: 'btn-primary', type: 'submit', text: 'Generate password' }),
-  ]);
-
-  form.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const address = email.value.trim();
-    email.value = '';
-    await issueCredential(address, form.querySelector('button'));
-  });
-
-  return form;
-}
-
-/**
- * Issues a password and shows it once.
- *
- * Order matters here. Refreshing the list rebuilds this whole card, so the
- * panel carrying the password has to be attached after that, to the new card,
- * or it lands on a detached node and the one chance to read the password is
- * gone. Rendered as a selectable input rather than plain text, because it has
- * to be copied into whatever the admin is sending and a value that can only be
- * read off the screen gets transcribed wrongly.
- */
-async function issueCredential(email, button) {
-  if (!email) return notice(messages, 'warn', 'Enter an email address.');
-  if (button) button.disabled = true;
-
-  try {
-    const created = await api.post('/api/admin/credentials', { email });
-
-    // Rebuilds #credentials, so nothing captured before this point survives.
-    await loadCredentials();
-
-    const panel = el('div', { class: 'notice notice--good', style: 'margin-top:12px' }, [
-      el('p', { style: 'margin:0 0 8px', text: created.message }),
-      el('p', { class: 'hint', style: 'margin:0 0 8px', text: `This address signs in as: ${created.resolvesTo}` }),
-    ]);
-
-    if (created.password) {
-      panel.append(
-        el('input', {
-          type: 'text',
-          readonly: 'readonly',
-          value: created.password,
-          style: 'font-family:ui-monospace,monospace;font-size:18px;letter-spacing:1px',
-          onclick: (event) => event.target.select(),
-        }),
-        el('p', { class: 'hint', style: 'margin:8px 0 0', text: 'Tap to select, then copy. Leaving this page loses it for good.' }),
-      );
-    }
-
-    document.getElementById('credentials').append(panel);
-    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  } catch (error) {
-    notice(messages, 'bad', error.message);
-  } finally {
-    if (button) button.disabled = false;
-  }
-}
-
-/**
- * Staff accounts.
- *
- * The seeded addresses are placeholders, and door staff change faster than
- * deploys do. Revoking access has to be something the venue can do in the
- * moment it needs doing, because the door list carries member and guest
- * contact details.
- */
-async function loadStaff() {
-  const card = document.getElementById('staff');
-  try {
-    const data = await api.get('/api/admin/staff');
-    card.innerHTML = '';
-
-    const body = el('tbody');
-    for (const person of data.staff) {
-      const button = el('button', {
-        class: 'btn-quiet btn-small',
-        type: 'button',
-        text: person.active ? 'Deactivate' : 'Restore',
-      });
-      button.addEventListener('click', async () => {
-        button.disabled = true;
-        try {
-          const result = await api.patch('/api/admin/staff', { staffId: person.staffId, active: !person.active });
-          notice(messages, 'good', result.message);
-          await loadStaff();
-        } catch (error) {
-          notice(messages, 'bad', error.message);
-          button.disabled = false;
-        }
-      });
-
-      body.append(
-        el('tr', { class: person.active ? '' : 'muted' }, [
-          el('td', {}, [el('strong', { text: person.name }), el('div', { class: 'hint', text: person.email })]),
-          el('td', { text: person.role }),
-          el('td', { text: person.active ? 'Active' : 'Deactivated' }),
-          el('td', {}, [button]),
-        ]),
-      );
-    }
-
-    card.append(
-      el('div', { class: 'scroll-x' }, [
-        el('table', {}, [
-          el('thead', {}, [
-            el('tr', {}, [
-              el('th', { text: 'Who' }),
-              el('th', { text: 'Role' }),
-              el('th', { text: 'Status' }),
-              el('th', { text: '' }),
-            ]),
-          ]),
-          body,
-        ]),
-      ]),
-      staffForm(),
-    );
-  } catch (error) {
-    card.innerHTML = '';
-    // A manager reaching this screen is not an error worth shouting about:
-    // they simply do not manage accounts.
-    card.append(el('p', { class: 'muted', text: error.code === 'FORBIDDEN' ? 'Only an admin can manage staff accounts.' : error.message }));
-  }
-}
-
-function staffForm() {
-  const email = el('input', { type: 'email', required: 'required', placeholder: 'name@alchemysaunas.com.au', autocomplete: 'off' });
-  const name = el('input', { type: 'text', required: 'required', placeholder: 'Full name' });
-  const role = el('select', {}, [
-    el('option', { value: 'door', text: 'Door: the door list only' }),
-    el('option', { value: 'manager', text: 'Manager: door list and reconciliation' }),
-    el('option', { value: 'admin', text: 'Admin: everything, including this screen' }),
-  ]);
-
-  const form = el('form', { class: 'stack', style: 'margin-top:16px' }, [
-    el('h3', { style: 'margin:0', text: 'Add or update someone' }),
-    el('p', { class: 'hint', style: 'margin:0', text: 'An existing address is updated in place, which also restores a deactivated account.' }),
-    el('div', {}, [el('label', { text: 'Email' }), email]),
-    el('div', {}, [el('label', { text: 'Name' }), name]),
-    el('div', {}, [el('label', { text: 'Role' }), role]),
-    el('button', { class: 'btn-primary', type: 'submit', text: 'Save' }),
-  ]);
-
-  form.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    try {
-      const result = await api.post('/api/admin/staff', {
-        email: email.value.trim(),
-        name: name.value.trim(),
-        role: role.value,
-      });
-      notice(messages, 'good', result.message);
-      await loadStaff();
-    } catch (error) {
-      notice(messages, 'bad', error.message);
-    }
-  });
-
-  return form;
+  host.append(el('div', { class: 'row row--between' }, [el('strong', { text: 'Email' }), button]), result);
 }
 
 load();
