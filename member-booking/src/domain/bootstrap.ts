@@ -24,8 +24,12 @@ import type { Store } from '../store/types.ts';
  *   It runs for one address. Anything else short-circuits before touching the
  *   database, so the ordinary sign-in path costs nothing.
  *
- *   What it creates must be changed. must_change is set, so the value from the
- *   environment is a way in once, not a standing password.
+ *   It creates a standing password, deliberately. An earlier version forced a
+ *   change at first sign-in, which is the safer default and the wrong one
+ *   here: the point of this account is that somebody can sign in with a known
+ *   password without a round trip. That trade is the reason the value lives in
+ *   the environment rather than in a migration, where it would be both
+ *   standing and public.
  */
 export async function ensureBootstrapAdmin(store: Store, email: string, venueId: string): Promise<void> {
   const wanted = process.env.ADMIN_BOOTSTRAP_EMAIL?.trim().toLowerCase();
@@ -47,7 +51,7 @@ export async function ensureBootstrapAdmin(store: Store, email: string, venueId:
   await store.credentials.setPassword({
     email: wanted,
     passwordHash: await hashPassword(password),
-    mustChange: true,
+    mustChange: false,
   });
 
   console.log(`[member-booking] bootstrapped the admin sign-in for ${wanted} from the environment`);
