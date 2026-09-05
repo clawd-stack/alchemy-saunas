@@ -72,7 +72,7 @@ export async function getWaiverByToken(context: Context, token: string): Promise
 
 export async function signWaiver(
   context: Context,
-  input: { token: string; signedName: string; ip: string | null; userAgent: string | null },
+  input: { token: string; signedName: string; signature: string; ip: string | null; userAgent: string | null },
 ): Promise<WaiverRecord | null> {
   const waiver = await getWaiverByToken(context, input.token);
   if (!waiver) return null;
@@ -80,6 +80,7 @@ export async function signWaiver(
   return context.store.waivers.sign({
     waiverId: waiver.waiverId,
     signedName: input.signedName,
+    signature: input.signature,
     ip: input.ip,
     userAgent: input.userAgent,
   });

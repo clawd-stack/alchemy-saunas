@@ -7,7 +7,7 @@ import { api, el } from '/api.js';
  * carries no staff links at all. A member who opens the menu and finds
  * "Settings" either clicks it and lands somewhere confusing, or learns the
  * venue's admin lives one tap from their booking screen. Neither is wanted,
- * and the door list is not a thing to advertise. Staff reach their pages by
+ * and the schedule is not a thing to advertise. Staff reach their pages by
  * going to /admin/ directly, which is a sign-in page.
  *
  * mountAdminNav() is the staff header, used only inside the admin area. It
@@ -27,8 +27,8 @@ const MEMBER_LINKS = [
 ];
 
 const ADMIN_LINKS = [
-  // Door list first: it is the only one of these anybody opens mid-shift.
-  { href: '/doorlist.html', label: 'Door list' },
+  // The schedule first: it is the only one of these anybody opens mid-shift.
+  { href: '/doorlist.html', label: 'Schedule' },
   { href: '/admin/settings.html', label: 'Settings', roles: ['admin', 'manager'] },
   { href: '/admin/waiver.html', label: 'Waiver', roles: ['admin', 'manager'] },
   { href: '/admin/people.html', label: 'People', roles: ['admin'] },

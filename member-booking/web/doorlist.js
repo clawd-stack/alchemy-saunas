@@ -5,8 +5,9 @@ import { mountAdminNav } from '/nav.js';
 mountAdminNav();
 
 /**
- * Door list. Built for a phone or a tablet held at a door: big touch targets,
- * one session at a time, no horizontal scrolling on the primary columns.
+ * The schedule, and the door list behind each session. Built for a phone or a
+ * tablet held at a door: big touch targets, one session at a time, no
+ * horizontal scrolling on the primary columns.
  *
  * Payment status here records what the EFTPOS terminal collected. It is a
  * reconciliation record, not a payment: no money moves through this software.

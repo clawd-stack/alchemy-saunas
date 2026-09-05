@@ -91,6 +91,18 @@ describe('GET /api/sessions', () => {
     }
   });
 
+  it('says where the venue is and how long a session runs', async () => {
+    // Both are on the session a member is about to confirm, so a page that
+    // stops receiving them shows a booking with no address on it.
+    const body = await (await sessionsHandler(get('/api/sessions'))).json();
+    expect(body.venue.address).toBe('34 Duke St, East Fremantle');
+    expect(body.policy.sessionLengthMinutes).toBe(60);
+    for (const view of body.sessions) {
+      expect(view.startsAt).toBeTruthy();
+      expect(view.endsAt).toBeTruthy();
+    }
+  });
+
   it('reports the signed-in member', async () => {
     const body = await (await sessionsHandler(get('/api/sessions', memberCookie()))).json();
     expect(body.signedIn).toBe(true);

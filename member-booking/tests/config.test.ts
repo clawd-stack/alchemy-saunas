@@ -160,3 +160,17 @@ describe('support email', () => {
     }
   });
 });
+
+describe('venue address', () => {
+  it('accepts an address, and blank to leave it off the session', () => {
+    expect(validate({ ...CONFIG_DEFAULTS, venueAddress: '34 Duke St, East Fremantle' })).toHaveLength(0);
+    expect(validate({ ...CONFIG_DEFAULTS, venueAddress: '' })).toHaveLength(0);
+  });
+
+  it('refuses something that is not text, or is far too long to be an address', () => {
+    for (const bad of [null, 42, 'x'.repeat(201)]) {
+      const issues = validate({ ...CONFIG_DEFAULTS, venueAddress: bad as unknown as string });
+      expect(issues.map((i) => i.key), String(bad).slice(0, 20)).toContain('venue_address');
+    }
+  });
+});

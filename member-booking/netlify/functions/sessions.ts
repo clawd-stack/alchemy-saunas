@@ -22,12 +22,18 @@ export default async (request: Request): Promise<Response> => {
 
     return json(request, {
       ok: true,
-      venue: { id: context.venueId, name: context.venueName, timezone: context.timezone },
+      venue: {
+        id: context.venueId,
+        name: context.venueName,
+        timezone: context.timezone,
+        address: context.config.venueAddress,
+      },
       policy: {
         maxGuests: context.config.maxGuestsPerMember,
         guestPrice: context.config.guestPrice,
         bookingWindowDays: context.config.bookingWindowDays,
         cancellationCutoffHours: context.config.cancellationCutoffHours,
+        sessionLengthMinutes: context.config.sessionLengthMinutes,
       },
       supportEmail: context.config.supportEmail,
       signedIn: Boolean(member),

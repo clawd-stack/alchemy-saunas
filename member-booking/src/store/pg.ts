@@ -109,6 +109,7 @@ function mapWaiver(row: any): WaiverRecord {
     sentAt: isoOrNull(row.sent_at),
     reminderSentAt: isoOrNull(row.reminder_sent_at),
     signedAt: isoOrNull(row.signed_at),
+    signature: row.signature ?? null,
   };
 }
 
@@ -424,6 +425,7 @@ export function createPgStore(connectionString?: string): Store {
           update waivers
              set status = 'signed', signed_at = coalesce(signed_at, now()),
                  signed_name = ${input.signedName},
+                 signature = ${input.signature},
                  signed_ip = ${input.ip}::inet,
                  signed_user_agent = ${input.userAgent}
            where waiver_id = ${input.waiverId}::uuid

@@ -137,6 +137,8 @@ export interface WaiverRecord {
   sentAt: string | null;
   reminderSentAt: string | null;
   signedAt: string | null;
+  /** SVG path data for the drawn signature. Null on waivers signed before it existed. */
+  signature: string | null;
 }
 
 export interface MemberRecord {
@@ -254,6 +256,7 @@ export interface Store {
     sign(input: {
       waiverId: string;
       signedName: string;
+      signature: string;
       ip: string | null;
       userAgent: string | null;
     }): Promise<WaiverRecord | null>;

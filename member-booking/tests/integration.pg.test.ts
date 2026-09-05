@@ -309,11 +309,14 @@ suite('pg store implementation', () => {
     const signed = await store.waivers.sign({
       waiverId: waiver.waiverId,
       signedName: 'G Zero',
+      signature: 'M120 260L240 140L300 280',
       ip: '203.0.113.7',
       userAgent: 'vitest',
     });
     expect(signed?.status).toBe('signed');
     expect(signed?.signedAt).not.toBeNull();
+    // The drawn signature comes back off the real column, not just in memory.
+    expect(signed?.signature).toBe('M120 260L240 140L300 280');
 
     // The guest's waiver status must surface on the booking for the door list.
     const refreshed = await store.bookings.get(created.bookingId);

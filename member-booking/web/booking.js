@@ -27,11 +27,15 @@ const guestFields = document.getElementById('guest-fields');
 const amountEl = document.getElementById('amount');
 const guestCountEl = document.getElementById('guest-count');
 const selectedLabel = document.getElementById('selected-label');
+const selectedDetail = document.getElementById('selected-detail');
+const dayHeadingEl = document.getElementById('day-heading');
 const myBookings = document.getElementById('my-bookings');
 
 const state = {
-  policy: { maxGuests: 3, guestPrice: 35, cancellationCutoffHours: 3, bookingWindowDays: 14 },
+  policy: { maxGuests: 3, guestPrice: 35, cancellationCutoffHours: 3, bookingWindowDays: 14, sessionLengthMinutes: 60 },
   timezone: 'Australia/Perth',
+  venueName: 'Alchemy East Fremantle',
+  venueAddress: '',
   sessions: [],
   selectedDay: null,
   selectedSession: null,
@@ -43,6 +47,20 @@ const dayFormat = new Intl.DateTimeFormat('en-AU', { weekday: 'short', timeZone:
 const domFormat = new Intl.DateTimeFormat('en-AU', { day: 'numeric', timeZone: 'Australia/Perth' });
 const monthFormat = new Intl.DateTimeFormat('en-AU', { month: 'long', year: 'numeric', timeZone: 'Australia/Perth' });
 const timeFormat = new Intl.DateTimeFormat('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Australia/Perth' });
+const dayHeadingFormat = new Intl.DateTimeFormat('en-AU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Australia/Perth' });
+
+/**
+ * How long a session runs. Taken from the session itself where the timetable
+ * gives an end, so a one-off longer session reads as what it is rather than as
+ * whatever the default happens to be.
+ */
+function durationLabel(session) {
+  const minutes = session.endsAt
+    ? Math.round((new Date(session.endsAt) - new Date(session.startsAt)) / 60000)
+    : state.policy.sessionLengthMinutes;
+  if (!minutes || minutes < 1) return '';
+  return minutes % 60 === 0 ? `${minutes / 60} hr` : `${minutes} min`;
+}
 
 function dayKey(iso) {
   return new Intl.DateTimeFormat('en-CA', { timeZone: state.timezone }).format(new Date(iso));
@@ -68,8 +86,10 @@ mountSignIn({
 async function loadSessions() {
   try {
     const data = await api.get('/api/sessions');
-    state.policy = data.policy;
+    state.policy = { ...state.policy, ...data.policy };
     state.timezone = data.venue.timezone;
+    state.venueName = data.venue.name ?? state.venueName;
+    state.venueAddress = data.venue.address ?? '';
     state.sessions = data.sessions;
     state.signedIn = data.signedIn;
 
@@ -160,18 +180,37 @@ function renderSlots(sessions) {
   slotsEl.innerHTML = '';
   slotsEmpty.hidden = sessions.length > 0;
 
+  const first = sessions[0];
+  dayHeadingEl.textContent = first ? dayHeadingFormat.format(new Date(first.startsAt)) : '';
+  dayHeadingEl.hidden = !first;
+
   for (const session of sessions) {
     const selected = state.selectedSession?.externalSessionId === session.externalSessionId;
+    const spots = session.spotsRemaining;
     slotsEl.append(
       el('button', {
-        class: 'slot',
+        class: 'session',
         type: 'button',
         disabled: !session.bookable,
         'aria-pressed': String(selected),
         onclick: () => selectSession(session),
       }, [
-        el('span', { class: 'time', text: timeFormat.format(new Date(session.startsAt)) }),
-        el('span', { class: 'left', text: session.spotsRemaining > 0 ? `${session.spotsRemaining} left` : 'Full' }),
+        el('span', { class: 'session__when' }, [
+          el('span', { class: 'session__time', text: timeFormat.format(new Date(session.startsAt)) }),
+          el('span', { class: 'session__length', text: durationLabel(session) }),
+          // Only when there is something left to say: the button already
+          // reads "full" and saying it twice in one row is noise.
+          spots > 0 ? el('span', { class: 'session__spots', text: `${spots} left` }) : null,
+        ]),
+        el('span', { class: 'session__what' }, [
+          el('span', { class: 'session__title', text: 'Member session' }),
+          el('span', { class: 'session__where', text: state.venueName }),
+        ]),
+        // The word the app puts here, and the one a member is looking for.
+        el('span', {
+          class: 'session__cta',
+          text: !session.bookable ? 'Full' : selected ? 'Selected' : 'Book',
+        }),
       ]),
     );
   }
@@ -184,6 +223,15 @@ function selectSession(session) {
   const at = new Date(session.startsAt);
   selectedLabel.textContent =
     `${dayFormat.format(at)} ${domFormat.format(at)} ${monthFormat.format(at).split(' ')[0]}, ${timeFormat.format(at)}`;
+
+  // What a member wants to know before confirming: where it is and how long
+  // they are committing to. Both were only ever on the confirmation email.
+  const length = durationLabel(session);
+  selectedDetail.textContent = [
+    state.venueAddress,
+    length ? `${length} session` : '',
+  ].filter(Boolean).join(' · ');
+  selectedDetail.hidden = !selectedDetail.textContent;
   renderDays();
   renderGuests();
   guestCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });

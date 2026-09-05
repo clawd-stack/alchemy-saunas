@@ -37,6 +37,8 @@ export interface AppConfig {
    * link rather than showing one that goes nowhere.
    */
   supportEmail: string;
+  /** Where the venue is. Shown on the session a member is about to book. */
+  venueAddress: string;
 }
 
 export const CONFIG_DEFAULTS: AppConfig = {
@@ -68,6 +70,7 @@ export const CONFIG_DEFAULTS: AppConfig = {
   // The venue's address, confirmed. Still editable in Settings: it is the
   // kind of thing that changes without anybody thinking to open a PR.
   supportEmail: 'support@alchemysaunas.com.au',
+  venueAddress: '34 Duke St, East Fremantle',
 };
 
 const KEY_MAP: Record<string, keyof AppConfig> = {
@@ -85,6 +88,7 @@ const KEY_MAP: Record<string, keyof AppConfig> = {
   operating_hours: 'operatingHours',
   booking_backend: 'bookingBackend',
   support_email: 'supportEmail',
+  venue_address: 'venueAddress',
 };
 
 export const CONFIG_KEYS = Object.keys(KEY_MAP);
@@ -161,6 +165,9 @@ export function validate(config: AppConfig): ValidationIssue[] {
   // enough to argue with a valid address it has not heard of.
   if (typeof config.supportEmail !== 'string' || (config.supportEmail !== '' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(config.supportEmail))) {
     issues.push({ key: 'support_email', message: 'Support email must be an email address, or blank to hide the link.' });
+  }
+  if (typeof config.venueAddress !== 'string' || config.venueAddress.length > 200) {
+    issues.push({ key: 'venue_address', message: 'Venue address must be text, or blank to hide it.' });
   }
   if (!Number.isInteger(config.memberSessionDays) || config.memberSessionDays < 1 || config.memberSessionDays > 365) {
     issues.push({ key: 'member_session_days', message: 'Member sign-in must last between 1 and 365 days.' });
