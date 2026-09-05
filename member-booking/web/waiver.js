@@ -1,4 +1,7 @@
 import { api, el, notice } from '/api.js';
+import { mountNav } from '/nav.js';
+
+mountNav();
 
 /**
  * Guest waiver page.

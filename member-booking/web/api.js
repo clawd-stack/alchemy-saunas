@@ -36,6 +36,7 @@ export const api = {
   get(path) { return this.request(path); },
   post(path, body) { return this.request(path, { method: 'POST', body }); },
   patch(path, body) { return this.request(path, { method: 'PATCH', body }); },
+  del(path, body) { return this.request(path, { method: 'DELETE', body }); },
 };
 
 export function el(tag, attrs = {}, children = []) {

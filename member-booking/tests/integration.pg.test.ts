@@ -350,6 +350,7 @@ suite('pg store implementation', () => {
         status: 'active',
         homeVenueId: VENUE_ID,
         syncedAt: new Date().toISOString(),
+      source: 'hapana' as const,
       },
     ]);
     // Email lookup is case-insensitive: members do not type consistently.

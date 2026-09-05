@@ -584,6 +584,34 @@ export function createMemoryStore(): MemoryStore {
       async upsertMany(list: MemberRecord[]): Promise<void> {
         for (const member of list) members.set(member.memberId, { ...member, syncedAt: new Date().toISOString() });
       },
+      async upsertManual({ email, firstName, lastName, status, homeVenueId }): Promise<MemberRecord> {
+        const normalised = email.toLowerCase();
+        const memberId = `manual:${normalised}`;
+        const record: MemberRecord = {
+          memberId,
+          email: normalised,
+          firstName,
+          lastName,
+          status,
+          homeVenueId,
+          syncedAt: new Date().toISOString(),
+          source: 'manual',
+        };
+        members.set(memberId, record);
+        return { ...record };
+      },
+      async listManual(): Promise<MemberRecord[]> {
+        return [...members.values()]
+          .filter((m) => m.source === 'manual')
+          .map((m) => ({ ...m }))
+          .sort((a, b) => a.email.localeCompare(b.email));
+      },
+      async removeManual(memberId: string): Promise<boolean> {
+        // Scoped to manual rows, so this can never delete a synced one.
+        const record = members.get(memberId);
+        if (!record || record.source !== 'manual') return false;
+        return members.delete(memberId);
+      },
       async lastSyncAt(): Promise<string | null> {
         const all = [...members.values()];
         if (all.length === 0) return null;

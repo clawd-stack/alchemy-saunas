@@ -1,5 +1,8 @@
 import { api, el, money, notice } from '/api.js';
 import { mountSignIn } from '/signin.js';
+import { mountNav } from '/nav.js';
+
+mountNav();
 
 /**
  * Member booking front end.

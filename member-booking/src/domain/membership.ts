@@ -44,7 +44,10 @@ export async function verifyMemberByEmail(
         ? { memberId: member.memberId, email: member.email, name: displayName(member.firstName, member.lastName, member.email), status: member.status, staleSince: null }
         : null;
     }
-    return null;
+    // Hapana answered, and does not know this address. It may still be somebody
+    // the venue added by hand, which is the whole point of a manual entry: a
+    // member who is not in Hapana yet, or never will be.
+    return await manualMember(context, email);
   } catch (error) {
     if (context.config.bookingBackend === 'hapana') {
       // Pattern A: no local inventory to fall back to, so refuse rather than
@@ -59,9 +62,35 @@ export async function verifyMemberByEmail(
       email: cached.email,
       name: displayName(cached.firstName, cached.lastName, cached.email),
       status: cached.status,
-      staleSince: cached.syncedAt,
+      // A manual entry is current by definition: somebody typed it, and no sync
+      // will refresh it. Marking it stale would put a misleading warning in
+      // front of door staff on every booking.
+      staleSince: cached.source === 'manual' ? null : cached.syncedAt,
     };
   }
+}
+
+/**
+ * A member the venue entered by hand, rather than one Hapana knows about.
+ *
+ * These exist so the channel can run before the Hapana key is configured, and
+ * so somebody can be let in when Hapana is wrong. They are deliberately not a
+ * back door: only an admin can create one, each is listed on the admin screen
+ * with its own row, and removing it removes access immediately.
+ */
+async function manualMember(
+  context: Pick<Context, 'store'>,
+  email: string,
+): Promise<VerifiedMember | null> {
+  const record = await context.store.members.getByEmail(email);
+  if (!record || record.source !== 'manual' || record.status !== 'active') return null;
+  return {
+    memberId: record.memberId,
+    email: record.email,
+    name: displayName(record.firstName, record.lastName, record.email),
+    status: record.status,
+    staleSince: null,
+  };
 }
 
 /** Re-checks a member on an action taken with an existing session cookie. */
@@ -69,6 +98,21 @@ export async function verifyMemberById(
   context: Pick<Context, 'store' | 'membership' | 'config'>,
   memberId: string,
 ): Promise<VerifiedMember | null> {
+  // A manual id cannot exist in Hapana, so asking would be a guaranteed miss
+  // and, while Hapana is unreachable, a guaranteed 503 for a member who is
+  // perfectly valid.
+  if (memberId.startsWith('manual:')) {
+    const record = await context.store.members.get(memberId);
+    if (!record || record.source !== 'manual' || record.status !== 'active') return null;
+    return {
+      memberId: record.memberId,
+      email: record.email,
+      name: displayName(record.firstName, record.lastName, record.email),
+      status: record.status,
+      staleSince: null,
+    };
+  }
+
   try {
     const member = await context.membership.getMember(memberId);
     if (!member || member.status !== 'active') return null;
@@ -105,7 +149,7 @@ function toRecord(member: {
   status: MembershipStatus;
   homeVenueId: string | null;
 }): MemberRecord {
-  return { ...member, syncedAt: new Date().toISOString() };
+  return { ...member, syncedAt: new Date().toISOString(), source: 'hapana' };
 }
 
 /** Pattern B scheduled sync. Returns the number of members refreshed. */
