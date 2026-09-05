@@ -3,7 +3,12 @@ import { mountSignIn } from '/signin.js';
 import { mountNav } from '/nav.js';
 import { renderMyBookings } from '/bookings-list.js';
 
-mountNav();
+// Held, because the header has to be redrawn after signing in. It is built
+// from /api/auth/session at page load, which on the sign-in screen is a
+// signed-out answer: without this, "My account" only appeared on the next
+// page load, and the member's own name never appeared at all until they
+// reloaded.
+const nav = mountNav();
 
 /**
  * Member booking front end.
@@ -76,7 +81,10 @@ mountSignIn({
   emailId: 'email',
   passwordId: 'password',
   messages,
-  onSignedIn: loadSessions,
+  onSignedIn: async () => {
+    await loadSessions();
+    nav?.refresh();
+  },
 });
 
 /* ---------------------------------------------------------------- */

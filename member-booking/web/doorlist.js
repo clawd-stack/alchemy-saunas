@@ -2,7 +2,9 @@ import { api, el, money, notice } from '/api.js';
 import { mountSignIn } from '/signin.js';
 import { mountAdminNav } from '/nav.js';
 
-mountAdminNav();
+// Held for the same reason the member header is: signing in here has to
+// redraw the header, which was built before there was a session to draw.
+const nav = mountAdminNav();
 
 /**
  * The schedule, and the door list behind each session. Built for a phone or a
@@ -30,7 +32,10 @@ mountSignIn({
   emailId: 'email',
   passwordId: 'password',
   messages,
-  onSignedIn: loadDay,
+  onSignedIn: async () => {
+    await loadDay();
+    nav?.refresh();
+  },
 });
 
 function todayKey() {
