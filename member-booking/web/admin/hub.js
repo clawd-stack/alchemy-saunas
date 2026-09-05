@@ -1,11 +1,11 @@
-import { api, el, figures, notice } from '/ui.js';
+import { api, el, notice } from '/ui.js';
 import { mountAdminPage, accountRow } from '/admin/shell.js';
 
 /**
- * Where a signed-in staff member lands. It answers "what can I do" with a
- * list rather than with one long page, and shows the two numbers worth
- * knowing before you touch anything: how many spots the channel is holding
- * per hour, and whether anything is misconfigured.
+ * Where a signed-in staff member lands. It answers "what can I do" and
+ * nothing else: the numbers it used to repeat are on the Settings page, next
+ * to the fields that set them, which is where somebody who cares about them
+ * is going anyway.
  */
 
 const DESTINATIONS = [
@@ -47,24 +47,15 @@ mountAdminPage({
     hub.innerHTML = '';
     warnings.innerHTML = '';
 
-    // Door staff cannot read the config endpoint, and asking anyway would
-    // put a 403 on the screen of somebody whose page is working fine.
+    // Only for the warnings: a missing Hapana key or an over-committed venue
+    // is worth saying on the way past, not buried one page in. Door staff
+    // cannot read this endpoint, and asking anyway would put a 403 on the
+    // screen of somebody whose page is working fine.
     const canConfigure = staff.role === 'admin' || staff.role === 'manager';
     const data = canConfigure ? await api.get('/api/admin/config').catch(() => null) : null;
 
     for (const warning of data?.warnings ?? []) {
       warnings.append(el('div', { class: 'notice notice--warn', text: warning }));
-    }
-
-    if (data) {
-      const config = data.config;
-      const tiles = [
-        [config.memberChannelCapacity, 'per hour'],
-        [config.maxGuestsPerMember, 'guests each'],
-        [`$${config.guestPrice}`, 'per guest'],
-      ];
-      if (config.venueMaximum !== null) tiles.push([config.venueMaximum, 'venue ceiling']);
-      hub.append(el('div', { class: 'card' }, [figures(tiles)]));
     }
 
     hub.append(el('div', { class: 'tiles' }, DESTINATIONS
@@ -78,7 +69,7 @@ mountAdminPage({
       el('div', { class: 'row row--between' }, [
         el('div', {}, [
           el('div', { class: 'item__title', text: staff.name }),
-          el('div', { class: 'item__meta', text: `${staff.email} · ${staff.role}` }),
+          el('div', { class: 'item__meta', text: [staff.email, staff.role].filter(Boolean).join(' · ') }),
         ]),
         accountRow({ messages, onDone: reload }),
       ]),

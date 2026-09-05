@@ -73,6 +73,8 @@ async function loadSessions() {
     state.sessions = data.sessions;
     state.signedIn = data.signedIn;
 
+    // Exactly one of the two states goes up. Before this, the form was
+    // markup's default and flashed at every signed-in member on every load.
     signinCard.classList.toggle('hidden', data.signedIn);
     bookingSection.classList.toggle('hidden', !data.signedIn);
     document.getElementById('heading').textContent = data.signedIn ? 'Book a session' : 'Member booking';
@@ -89,6 +91,10 @@ async function loadSessions() {
     } else {
       notice(messages, 'bad', error.message);
     }
+  } finally {
+    // Down whatever happened: an outage that left a spinner spinning forever
+    // would read as a hung page rather than as the error beside it.
+    document.getElementById('page-loading')?.setAttribute('hidden', '');
   }
 }
 

@@ -8,6 +8,10 @@ import { mountSignIn, showPasswordChange } from '/signin.js';
  * show the form to somebody who is already signed in, which is how the last
  * sign-in bug looked from the outside.
  *
+ * Nothing but a spinner is shown until the session answers. The form used to
+ * be markup's default, so every navigation flashed a login screen at somebody
+ * who was already signed in, on every page, every time.
+ *
  * The page's own work happens in `run`, which is called with the staff session
  * so a page can lay itself out by role rather than waiting for a 403.
  */
@@ -15,7 +19,10 @@ export function mountAdminPage({ run, roles }) {
   const messages = document.getElementById('messages');
   const signinCard = document.getElementById('signin-card');
   const body = document.getElementById('page-body');
+  const loading = document.getElementById('page-loading');
   const nav = mountAdminNav();
+
+  const settle = () => { if (loading) loading.hidden = true; };
 
   mountSignIn({
     formId: 'signin-form',
@@ -38,6 +45,7 @@ export function mountAdminPage({ run, roles }) {
     if (!staff) return signedOut();
 
     if (roles && !roles.includes(staff.role)) {
+      settle();
       signinCard.classList.add('hidden');
       body.classList.remove('hidden');
       body.innerHTML = '';
@@ -46,6 +54,7 @@ export function mountAdminPage({ run, roles }) {
       return;
     }
 
+    settle();
     signinCard.classList.add('hidden');
     body.classList.remove('hidden');
     nav?.refresh();
@@ -58,6 +67,7 @@ export function mountAdminPage({ run, roles }) {
   }
 
   function signedOut() {
+    settle();
     signinCard.classList.remove('hidden');
     body.classList.add('hidden');
     nav?.refresh();
