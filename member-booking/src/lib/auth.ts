@@ -1,32 +1,38 @@
 import { BookingError } from './errors.ts';
 import { env } from './env.ts';
 import { MEMBER_COOKIE, STAFF_COOKIE, readCookie } from './http.ts';
-import { generateToken, hashToken, signSession, verifySession } from './crypto.ts';
+import { hashToken, signSession, verifySession } from './crypto.ts';
 import type { Store } from '../store/types.ts';
 
 /**
  * Authentication.
  *
- * Members: a single-use link, either emailed to them or handed over by staff
- * at the venue (see the staff-links function). No password is ever created or
- * stored: passwords would need a delivery channel and a reset channel, which
- * are the very things that are missing, and would add credential handling to
- * a pilot that does not need it. If Hapana turns out to expose an OAuth flow usable
- * from an external page (PRD 9.2) it slots in as another way to reach
- * issueMemberSession, and nothing downstream changes.
+ * Email and password, for members and staff alike. A manager issues the
+ * password from the admin screen and passes it on by whatever means suits;
+ * nothing about sign-in depends on this service being able to send email,
+ * which is what the magic-link design it replaces could never say.
  *
- * Staff: the same magic link mechanism against staff_users. The door list shows
- * member and guest names and contact details, so it is authenticated. The
- * private booking URL is a distribution choice and is never an access control.
+ * The password itself is never stored, only a salted scrypt hash with its cost
+ * parameters attached (see password.ts). A manager-issued password is marked
+ * must-change, so a password that has been read aloud or forwarded is always
+ * replaced by one only its owner knows.
+ *
+ * Membership is still verified against Hapana on every sign-in and on every
+ * booking. A credential is permission to identify yourself, never permission to
+ * book: a lapsed member with a valid password gets exactly as far as a lapsed
+ * member without one.
+ *
+ * The door list shows member and guest names and contact details, so it is
+ * authenticated. The private booking URL is a distribution choice and is never
+ * an access control.
  */
 
-export const MAGIC_LINK_TTL_MINUTES = 15;
 export const MEMBER_SESSION_TTL_HOURS = 12;
 export const STAFF_SESSION_TTL_HOURS = 12;
 
-/** Requests per email or IP per window for the magic-link endpoint. */
-export const MAGIC_LINK_RATE_LIMIT = 5;
-export const MAGIC_LINK_RATE_WINDOW_MS = 15 * 60_000;
+/** Sign-in attempts per email or IP per window. */
+export const LOGIN_RATE_LIMIT = 8;
+export const LOGIN_RATE_WINDOW_MS = 15 * 60_000;
 
 export interface MemberSession {
   kind: 'member';
@@ -115,51 +121,19 @@ export function requireAdmin(request: Request): StaffSession {
 }
 
 /**
- * Creates a single-use magic-link token. Returns the raw token for the email;
- * only its hash reaches the database.
- */
-export async function createMagicLink(
-  store: Store,
-  input: { email: string; memberId: string; ip?: string | null },
-): Promise<string> {
-  const token = generateToken();
-  await store.auth.createToken({
-    tokenHash: hashToken(token),
-    email: input.email,
-    memberId: input.memberId,
-    expiresAt: new Date(Date.now() + MAGIC_LINK_TTL_MINUTES * 60_000),
-    ip: input.ip ?? null,
-  });
-  return token;
-}
-
-export async function consumeMagicLink(
-  store: Store,
-  token: string,
-): Promise<{ email: string; memberId: string } | null> {
-  return store.auth.consumeToken(hashToken(token));
-}
-
-/**
- * Rate limiting for link requests. Both the email and the caller IP are
- * bucketed, so neither a single address nor a single source can be used to
- * enumerate the membership list.
+ * Rate limiting for sign-in. Both the email and the caller IP are bucketed, so
+ * neither a single address nor a single source can be used to grind through
+ * passwords or to enumerate the membership list. The email bucket is keyed by a
+ * hash, so the rate-limit table is not itself a list of who has an account.
  */
 export async function withinRateLimit(store: Store, email: string, ip: string | null): Promise<boolean> {
   const emailOk = await store.auth.throttle(
-    `magic:email:${hashToken(email)}`,
-    MAGIC_LINK_RATE_LIMIT,
-    MAGIC_LINK_RATE_WINDOW_MS,
+    `login:email:${hashToken(email)}`,
+    LOGIN_RATE_LIMIT,
+    LOGIN_RATE_WINDOW_MS,
   );
   const ipOk = ip
-    ? await store.auth.throttle(`magic:ip:${hashToken(ip)}`, MAGIC_LINK_RATE_LIMIT * 4, MAGIC_LINK_RATE_WINDOW_MS)
+    ? await store.auth.throttle(`login:ip:${hashToken(ip)}`, LOGIN_RATE_LIMIT * 4, LOGIN_RATE_WINDOW_MS)
     : true;
   return emailOk && ipOk;
-}
-
-export function magicLinkUrl(token: string, next: 'booking' | 'doorlist' | 'admin'): string {
-  const url = new URL('/api/auth-verify', env.publicBaseUrl);
-  url.searchParams.set('token', token);
-  url.searchParams.set('next', next);
-  return url.toString();
 }

@@ -7,7 +7,6 @@ import { MEMBER_COOKIE, STAFF_COOKIE } from '../src/lib/http.ts';
 import { ACTIVE_MEMBER, PAUSED_MEMBER, futureSession, VENUE_ID } from './helpers.ts';
 
 import sessionsHandler from '../netlify/functions/sessions.ts';
-import authRequestHandler from '../netlify/functions/auth-request.ts';
 import bookingsHandler from '../netlify/functions/bookings.ts';
 import cancelHandler from '../netlify/functions/booking-cancel.ts';
 import doorListHandler from '../netlify/functions/doorlist.ts';
@@ -96,40 +95,6 @@ describe('GET /api/sessions', () => {
     const body = await (await sessionsHandler(get('/api/sessions', memberCookie()))).json();
     expect(body.signedIn).toBe(true);
     expect(body.memberName).toBe('Ada Active');
-  });
-});
-
-describe('POST /api/auth/request', () => {
-  it('answers identically for a member, a paused member and a stranger', async () => {
-    const bodies = [];
-    for (const email of [ACTIVE_MEMBER.email, PAUSED_MEMBER.email, 'nobody@example.com']) {
-      const response = await authRequestHandler(post('/api/auth/request', { email }));
-      expect(response.status).toBe(200);
-      bodies.push(await response.json());
-    }
-    // Nothing in the response distinguishes the three cases.
-    expect(new Set(bodies.map((body) => JSON.stringify(body))).size).toBe(1);
-  });
-
-  it('only actually emails the active member', async () => {
-    for (const email of [ACTIVE_MEMBER.email, PAUSED_MEMBER.email, 'nobody@example.com']) {
-      await authRequestHandler(post('/api/auth/request', { email }));
-    }
-    const links = store.outboxAll().filter((entry) => entry.template === 'magic_link');
-    expect(links.map((entry) => entry.toEmail)).toEqual([ACTIVE_MEMBER.email]);
-  });
-
-  it('rejects a malformed email', async () => {
-    const response = await authRequestHandler(post('/api/auth/request', { email: 'not-an-email' }));
-    expect(response.status).toBe(400);
-  });
-
-  it('throttles repeated requests for the same address', async () => {
-    const statuses = [];
-    for (let i = 0; i < 7; i += 1) {
-      statuses.push((await authRequestHandler(post('/api/auth/request', { email: ACTIVE_MEMBER.email }))).status);
-    }
-    expect(statuses.filter((status) => status === 429).length).toBeGreaterThan(0);
   });
 });
 
@@ -355,52 +320,28 @@ describe('GET /api/health', () => {
 });
 
 /**
- * Staff-issued links: running the channel with no email provider configured.
- * A member is signed in, and a guest signs a waiver, entirely at the venue.
+ * Staff-issued guest waiver links. A guest has no account and never will,
+ * so their waiver stays a single-use link that staff can produce at the counter.
  */
-describe('staff-issued links', () => {
+describe('staff-issued guest waivers', () => {
   it('requires staff authentication', async () => {
-    const response = await staffLinksHandler(post('/api/staff/links', { action: 'member-signin', email: ACTIVE_MEMBER.email }));
+    const response = await staffLinksHandler(post('/api/staff/links', { action: 'guest-waiver', bookingId: 'x', guestId: 'y' }));
     expect(response.status).toBe(401);
   });
 
   it('is not reachable with a member cookie', async () => {
     const response = await staffLinksHandler(
-      post('/api/staff/links', { action: 'member-signin', email: ACTIVE_MEMBER.email }, memberCookie()),
+      post('/api/staff/links', { action: 'guest-waiver', bookingId: 'x', guestId: 'y' }, memberCookie()),
     );
     expect(response.status).toBe(401);
   });
 
-  it('issues a working sign-in link for an active member', async () => {
+  it('no longer issues member sign-in links: passwords replaced them', async () => {
     const response = await staffLinksHandler(
       post('/api/staff/links', { action: 'member-signin', email: ACTIVE_MEMBER.email }, staffCookie()),
     );
-    expect(response.status).toBe(200);
-
-    const body = await response.json();
-    expect(body.url).toContain('/api/auth-verify');
-    expect(body.memberName).toBe('Ada Active');
-    expect(body.sessionDays).toBe(30);
-
-    // The token must actually authenticate, not merely look like a link.
-    const token = new URL(body.url).searchParams.get('token')!;
-    const { consumeMagicLink } = await import('../src/lib/auth.ts');
-    expect(await consumeMagicLink(store, token)).toMatchObject({ memberId: ACTIVE_MEMBER.memberId });
-  });
-
-  it('refuses a member whose membership is not active, even for staff', async () => {
-    const response = await staffLinksHandler(
-      post('/api/staff/links', { action: 'member-signin', email: PAUSED_MEMBER.email }, staffCookie()),
-    );
-    expect(response.status).toBe(403);
-    // Same generic refusal as the member-facing path, so staff cannot use this
-    // to discover who holds a membership.
-    expect((await response.json()).code).toBe('NO_ACTIVE_MEMBERSHIP');
-  });
-
-  it('sends nothing: the link is handed over, not emailed', async () => {
-    await staffLinksHandler(post('/api/staff/links', { action: 'member-signin', email: ACTIVE_MEMBER.email }, staffCookie()));
-    expect(store.outboxAll().filter((entry) => entry.template === 'magic_link')).toHaveLength(0);
+    expect(response.status).toBe(400);
+    expect((await response.json()).code).toBe('INVALID_REQUEST');
   });
 
   it('opens a waiver for a guest so they can sign at the door', async () => {

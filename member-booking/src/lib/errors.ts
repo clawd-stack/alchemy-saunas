@@ -60,6 +60,17 @@ export const REFUSAL = {
   },
   NOT_FOUND: { status: 404, message: 'Not found.' },
   UNAUTHENTICATED: { status: 401, message: 'Please sign in again.' },
+  /**
+   * One message for every way a sign-in can fail: no such address, wrong
+   * password, deactivated account, lapsed membership. Distinguishing them would
+   * tell an anonymous caller who holds a membership, so they are deliberately
+   * indistinguishable.
+   */
+  SIGNIN_FAILED: {
+    status: 401,
+    message: 'That email and password combination did not work. If you think it should, contact the venue.',
+  },
+  PASSWORD_TOO_SHORT: { status: 400, message: 'Please choose a longer password.' },
   FORBIDDEN: { status: 403, message: 'You do not have access to this.' },
   RATE_LIMITED: { status: 429, message: 'Too many attempts. Please wait a few minutes and try again.' },
   INVALID_REQUEST: { status: 400, message: 'That request was not valid.' },

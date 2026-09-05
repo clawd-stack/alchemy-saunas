@@ -333,31 +333,7 @@ suite('pg store implementation', () => {
     expect(booking?.memberCheckedIn).toBe(true);
   });
 
-  it('consumes a magic-link token exactly once', async () => {
-    const tokenHash = `auth-${Math.random()}`;
-    await store.auth.createToken({
-      tokenHash,
-      email: 'auth@example.com',
-      memberId: 'auth-member',
-      expiresAt: new Date(Date.now() + 900_000),
-    });
-    expect(await store.auth.consumeToken(tokenHash)).toMatchObject({ memberId: 'auth-member' });
-    // A second open of the same link, which email scanners do routinely.
-    expect(await store.auth.consumeToken(tokenHash)).toBeNull();
-  });
-
-  it('rejects an expired magic-link token', async () => {
-    const tokenHash = `expired-${Math.random()}`;
-    await store.auth.createToken({
-      tokenHash,
-      email: 'expired@example.com',
-      memberId: 'expired-member',
-      expiresAt: new Date(Date.now() - 1000),
-    });
-    expect(await store.auth.consumeToken(tokenHash)).toBeNull();
-  });
-
-  it('throttles repeated magic-link requests', async () => {
+  it('throttles repeated sign-in attempts', async () => {
     const bucket = `throttle-${Math.random()}`;
     const outcomes: boolean[] = [];
     for (let i = 0; i < 7; i += 1) outcomes.push(await store.auth.throttle(bucket, 5, 900_000));

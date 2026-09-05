@@ -9,6 +9,7 @@ import type {
   ConfigEntry,
   CreateBookingInput,
   CreateBookingResult,
+  CredentialRecord,
   GuestRecord,
   MemberRecord,
   OutboxEntry,
@@ -113,6 +114,7 @@ export function createMemoryStore(): MemoryStore {
   const config = new Map<string, ConfigEntry>();
   const members = new Map<string, MemberRecord>();
   const staff: StaffRecord[] = [];
+  const credentials = new Map<string, CredentialRecord>();
   const tokens = new Map<string, { email: string; memberId: string; expiresAt: Date; consumed: boolean }>();
   const throttleBuckets = new Map<string, { hits: number; windowStart: number }>();
   const outbox: OutboxEntry[] = [];
@@ -590,15 +592,6 @@ export function createMemoryStore(): MemoryStore {
     },
 
     auth: {
-      async createToken({ tokenHash, email, memberId, expiresAt }): Promise<void> {
-        tokens.set(tokenHash, { email, memberId, expiresAt, consumed: false });
-      },
-      async consumeToken(tokenHash: string) {
-        const token = tokens.get(tokenHash);
-        if (!token || token.consumed || token.expiresAt.getTime() <= Date.now()) return null;
-        token.consumed = true;
-        return { email: token.email, memberId: token.memberId };
-      },
       async throttle(bucketKey: string, limit: number, windowMs: number): Promise<boolean> {
         const now = Date.now();
         const bucket = throttleBuckets.get(bucketKey);
@@ -637,6 +630,56 @@ export function createMemoryStore(): MemoryStore {
         if (!record) return null;
         record.active = active;
         return { ...record };
+      },
+    },
+
+    credentials: {
+      async get(email: string): Promise<CredentialRecord | null> {
+        const record = credentials.get(email.toLowerCase());
+        return record ? { ...record } : null;
+      },
+      async setPassword({ email, passwordHash, mustChange }): Promise<CredentialRecord> {
+        const key = email.toLowerCase();
+        const now = new Date().toISOString();
+        const existing = credentials.get(key);
+        const record: CredentialRecord = {
+          email: key,
+          passwordHash,
+          mustChange,
+          // A reset is also how a suspended account is brought back.
+          active: true,
+          lastLoginAt: existing?.lastLoginAt ?? null,
+          createdAt: existing?.createdAt ?? now,
+          updatedAt: now,
+        };
+        credentials.set(key, record);
+        return { ...record };
+      },
+      async updateHash(email: string, passwordHash: string): Promise<void> {
+        const record = credentials.get(email.toLowerCase());
+        if (record) {
+          record.passwordHash = passwordHash;
+          record.updatedAt = new Date().toISOString();
+        }
+      },
+      async recordLogin(email: string): Promise<void> {
+        const record = credentials.get(email.toLowerCase());
+        if (record) record.lastLoginAt = new Date().toISOString();
+      },
+      async setActive(email: string, active: boolean): Promise<CredentialRecord | null> {
+        const record = credentials.get(email.toLowerCase());
+        if (!record) return null;
+        record.active = active;
+        record.updatedAt = new Date().toISOString();
+        return { ...record };
+      },
+      async list(): Promise<CredentialRecord[]> {
+        return [...credentials.values()]
+          .map((record) => ({ ...record }))
+          .sort((a, b) => Number(b.active) - Number(a.active) || a.email.localeCompare(b.email));
+      },
+      async remove(email: string): Promise<boolean> {
+        return credentials.delete(email.toLowerCase());
       },
     },
 

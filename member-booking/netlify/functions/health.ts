@@ -52,18 +52,6 @@ export default async (request: Request): Promise<Response> => {
         : `${emailProvider} selected but its credentials are missing`,
   });
 
-  // A break-glass credential is meant to be temporary. Left in place it is a
-  // standing second way into the admin screen, so the check fails while it
-  // exists rather than only mentioning it.
-  const bootstrapToken = process.env.ADMIN_BOOTSTRAP_TOKEN ?? '';
-  checks.push({
-    name: 'bootstrap_token_removed',
-    ok: bootstrapToken === '',
-    detail: bootstrapToken
-      ? 'ADMIN_BOOTSTRAP_TOKEN is still set: break-glass admin sign-in is live. Delete it once email works.'
-      : 'no break-glass credential set',
-  });
-
   if (context) {
     const version = context.config.waiverVersion;
     const isPlaceholder = IS_PLACEHOLDER || version.startsWith('PLACEHOLDER');
@@ -71,6 +59,28 @@ export default async (request: Request): Promise<Response> => {
       name: 'waiver_wording',
       ok: !isPlaceholder,
       detail: isPlaceholder ? `placeholder ${version}` : `${version}, agreeing to ${context.config.waiverText.termsUrl}`,
+    });
+  }
+
+  if (context) {
+    // Sign-in is a password now, so an admin who can still get in is a
+    // deployment-level dependency, not a detail. Zero admin accounts, or every
+    // one of them still on an issued password, is worth surfacing.
+    const accounts = await context.store.credentials.list();
+    const staff = await context.store.auth.listStaff();
+    const adminEmails = new Set(
+      staff.filter((s) => s.active && s.role === 'admin').map((s) => s.email.toLowerCase()),
+    );
+    const adminLogins = accounts.filter((a) => a.active && adminEmails.has(a.email));
+    const unchanged = adminLogins.filter((a) => a.mustChange).length;
+    checks.push({
+      name: 'admin_sign_in',
+      ok: adminLogins.length > 0,
+      detail:
+        adminLogins.length === 0
+          ? 'no active admin has a password set: nobody can reach the configuration screen'
+          : `${adminLogins.length} admin sign-in${adminLogins.length === 1 ? '' : 's'}` +
+            (unchanged > 0 ? `, ${unchanged} still on an issued password that should be changed` : ''),
     });
   }
 

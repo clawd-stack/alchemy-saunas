@@ -1,4 +1,5 @@
 import { api, el, money, notice } from '/api.js';
+import { mountSignIn } from '/signin.js';
 
 /**
  * Door list. Built for a phone or a tablet held at a door: big touch targets,
@@ -19,21 +20,13 @@ const staleEl = document.getElementById('stale');
 
 const timeFormat = new Intl.DateTimeFormat('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Australia/Perth' });
 
-document.getElementById('signin-form').addEventListener('submit', async (event) => {
-  event.preventDefault();
-  const button = document.getElementById('signin-button');
-  button.disabled = true;
-  try {
-    const result = await api.post('/api/auth/request', {
-      email: document.getElementById('email').value.trim(),
-      audience: 'doorlist',
-    });
-    notice(messages, 'good', result.message);
-  } catch (error) {
-    notice(messages, 'bad', error.message);
-  } finally {
-    button.disabled = false;
-  }
+mountSignIn({
+  formId: 'signin-form',
+  buttonId: 'signin-button',
+  emailId: 'email',
+  passwordId: 'password',
+  messages,
+  onSignedIn: loadDay,
 });
 
 function todayKey() {
@@ -219,27 +212,6 @@ async function openWaiver(bookingId, guest) {
     notice(messages, 'bad', error.message);
   }
 }
-
-document.getElementById('issue-link').addEventListener('click', async () => {
-  const target = document.getElementById('issued-link');
-  const email = document.getElementById('member-email').value.trim();
-  target.innerHTML = '';
-  if (!email) return notice(target, 'warn', 'Enter the email on their membership.');
-
-  try {
-    const result = await api.post('/api/staff/links', { action: 'member-signin', email });
-    target.innerHTML = '';
-    target.append(
-      el('div', { class: 'notice notice--good' }, [result.message]),
-      el('input', { type: 'text', value: result.url, readonly: true, id: 'issued-url', onclick: (event) => event.target.select() }),
-      el('p', { class: 'hint', text: 'Tap the box to select, then copy it, or let them open it on this screen.' }),
-    );
-  } catch (error) {
-    // Deliberately the same generic message as the member-facing path: staff
-    // must not be able to use this to find out who holds a membership.
-    notice(target, 'bad', error.message);
-  }
-});
 
 async function setPayment(row, paymentStatus) {
   try {

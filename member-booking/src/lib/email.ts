@@ -271,26 +271,6 @@ export function waiverInvite(input: {
   };
 }
 
-export function magicLink(input: { linkUrl: string; expiryMinutes: number }): EmailMessage {
-  const text = [
-    'Here is your sign-in link for Alchemy member bookings:',
-    '',
-    input.linkUrl,
-    '',
-    `The link works once and expires in ${input.expiryMinutes} minutes.`,
-    'If you did not ask for this, you can ignore this email.',
-  ].join('\n');
-
-  const html = layout(
-    'Your sign-in link',
-    `<p style="margin:0 0 16px">Tap below to sign in to member bookings. The link works once and expires in ${input.expiryMinutes} minutes.</p>
-     <p style="margin:24px 0"><a href="${input.linkUrl}" style="background:${BRAND.accent};color:#fff;padding:12px 20px;border-radius:6px;text-decoration:none;display:inline-block">Sign in</a></p>
-     <p style="margin:0;font-size:13px;color:${BRAND.muted}">If you did not ask for this, you can ignore this email.</p>`,
-  );
-
-  return { to: '', subject: 'Your Alchemy sign-in link', text, html };
-}
-
 export function cancellationNotice(input: {
   recipientName: string;
   venueName: string;

@@ -20,13 +20,17 @@
     <!-- Sign in ------------------------------------------------------- -->
     <section class="card" id="signin-card">
       <h2 style="margin-top:0">Sign in</h2>
-      <p class="muted" style="margin-top:0">Enter the email on your Alchemy membership and we will send you a sign-in link. No password needed.</p>
+      <p class="muted" style="margin-top:0">Use the email on your Alchemy membership and the password the venue gave you. If you do not have one yet, or have lost it, contact the venue.</p>
       <form id="signin-form" class="stack">
         <div>
           <label for="email">Email</label>
           <input id="email" name="email" type="email" autocomplete="email" required placeholder="you@example.com">
         </div>
-        <button class="btn-primary" type="submit" id="signin-button">Send my sign-in link</button>
+        <div>
+          <label for="password">Password</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" required>
+        </div>
+        <button class="btn-primary" type="submit" id="signin-button">Sign in</button>
       </form>
     </section>
 
