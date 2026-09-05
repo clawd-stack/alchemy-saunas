@@ -7,9 +7,11 @@ import type { Store } from '../store/types.ts';
 /**
  * Authentication.
  *
- * Members: magic link. The member enters an email, we check it against Hapana's
- * active members, and if it is active we email a single-use link. No password
- * is ever created or stored. If Hapana turns out to expose an OAuth flow usable
+ * Members: a single-use link, either emailed to them or handed over by staff
+ * at the venue (see the staff-links function). No password is ever created or
+ * stored: passwords would need a delivery channel and a reset channel, which
+ * are the very things that are missing, and would add credential handling to
+ * a pilot that does not need it. If Hapana turns out to expose an OAuth flow usable
  * from an external page (PRD 9.2) it slots in as another way to reach
  * issueMemberSession, and nothing downstream changes.
  *
@@ -44,13 +46,16 @@ export interface StaffSession {
   exp: number;
 }
 
-export function issueMemberSession(member: { memberId: string; email: string; name: string }): string {
+export function issueMemberSession(
+  member: { memberId: string; email: string; name: string },
+  ttlHours: number = MEMBER_SESSION_TTL_HOURS,
+): string {
   const payload: MemberSession = {
     kind: 'member',
     memberId: member.memberId,
     email: member.email,
     name: member.name,
-    exp: Math.floor(Date.now() / 1000) + MEMBER_SESSION_TTL_HOURS * 3600,
+    exp: Math.floor(Date.now() / 1000) + ttlHours * 3600,
   };
   return signSession(env.sessionSecret, payload as unknown as Record<string, unknown>);
 }

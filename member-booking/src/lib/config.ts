@@ -25,6 +25,7 @@ export interface AppConfig {
   bookingWindowDays: number;
   cancellationCutoffHours: number;
   maxGuestsPerMember: number;
+  memberSessionDays: number;
   guestPrice: number;
   sessionLengthMinutes: number;
   waiverVersion: string;
@@ -40,6 +41,9 @@ export const CONFIG_DEFAULTS: AppConfig = {
   bookingWindowDays: 14,
   cancellationCutoffHours: 3,
   maxGuestsPerMember: 3,
+  // Long by design. Without email a member cannot re-request a link on their
+  // own, so a sign-in handed over at the venue has to keep working.
+  memberSessionDays: 30,
   guestPrice: 35,
   sessionLengthMinutes: 60,
   waiverVersion: WAIVER_VERSION,
@@ -65,6 +69,7 @@ const KEY_MAP: Record<string, keyof AppConfig> = {
   booking_window_days: 'bookingWindowDays',
   cancellation_cutoff_hours: 'cancellationCutoffHours',
   max_guests_per_member: 'maxGuestsPerMember',
+  member_session_days: 'memberSessionDays',
   guest_price: 'guestPrice',
   session_length_minutes: 'sessionLengthMinutes',
   waiver_version: 'waiverVersion',
@@ -142,6 +147,9 @@ export function validate(config: AppConfig): ValidationIssue[] {
   }
   if (!Number.isInteger(config.maxGuestsPerMember) || config.maxGuestsPerMember < 0 || config.maxGuestsPerMember > 10) {
     issues.push({ key: 'max_guests_per_member', message: 'Guests per member must be between 0 and 10.' });
+  }
+  if (!Number.isInteger(config.memberSessionDays) || config.memberSessionDays < 1 || config.memberSessionDays > 365) {
+    issues.push({ key: 'member_session_days', message: 'Member sign-in must last between 1 and 365 days.' });
   }
   if (typeof config.guestPrice !== 'number' || config.guestPrice < 0) {
     issues.push({ key: 'guest_price', message: 'Guest price must be zero or more.' });

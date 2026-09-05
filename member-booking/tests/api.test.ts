@@ -15,6 +15,7 @@ import doorUpdateHandler from '../netlify/functions/door-update.ts';
 import adminConfigHandler from '../netlify/functions/admin-config.ts';
 import reconciliationHandler from '../netlify/functions/admin-reconciliation.ts';
 import healthHandler from '../netlify/functions/health.ts';
+import staffLinksHandler from '../netlify/functions/staff-links.ts';
 
 /**
  * The API layer as HTTP: status codes, cookies, and what a caller can and
@@ -349,5 +350,87 @@ describe('GET /api/health', () => {
     const names = body.checks.filter((check: { ok: boolean }) => !check.ok).map((check: { name: string }) => check.name);
     expect(names).toContain('hapana_credentials');
     expect(names).toContain('email_provider');
+  });
+});
+
+/**
+ * Staff-issued links: running the channel with no email provider configured.
+ * A member is signed in, and a guest signs a waiver, entirely at the venue.
+ */
+describe('staff-issued links', () => {
+  it('requires staff authentication', async () => {
+    const response = await staffLinksHandler(post('/api/staff/links', { action: 'member-signin', email: ACTIVE_MEMBER.email }));
+    expect(response.status).toBe(401);
+  });
+
+  it('is not reachable with a member cookie', async () => {
+    const response = await staffLinksHandler(
+      post('/api/staff/links', { action: 'member-signin', email: ACTIVE_MEMBER.email }, memberCookie()),
+    );
+    expect(response.status).toBe(401);
+  });
+
+  it('issues a working sign-in link for an active member', async () => {
+    const response = await staffLinksHandler(
+      post('/api/staff/links', { action: 'member-signin', email: ACTIVE_MEMBER.email }, staffCookie()),
+    );
+    expect(response.status).toBe(200);
+
+    const body = await response.json();
+    expect(body.url).toContain('/api/auth-verify');
+    expect(body.memberName).toBe('Ada Active');
+    expect(body.sessionDays).toBe(30);
+
+    // The token must actually authenticate, not merely look like a link.
+    const token = new URL(body.url).searchParams.get('token')!;
+    const { consumeMagicLink } = await import('../src/lib/auth.ts');
+    expect(await consumeMagicLink(store, token)).toMatchObject({ memberId: ACTIVE_MEMBER.memberId });
+  });
+
+  it('refuses a member whose membership is not active, even for staff', async () => {
+    const response = await staffLinksHandler(
+      post('/api/staff/links', { action: 'member-signin', email: PAUSED_MEMBER.email }, staffCookie()),
+    );
+    expect(response.status).toBe(403);
+    // Same generic refusal as the member-facing path, so staff cannot use this
+    // to discover who holds a membership.
+    expect((await response.json()).code).toBe('NO_ACTIVE_MEMBERSHIP');
+  });
+
+  it('sends nothing: the link is handed over, not emailed', async () => {
+    await staffLinksHandler(post('/api/staff/links', { action: 'member-signin', email: ACTIVE_MEMBER.email }, staffCookie()));
+    expect(store.outboxAll().filter((entry) => entry.template === 'magic_link')).toHaveLength(0);
+  });
+
+  it('opens a waiver for a guest so they can sign at the door', async () => {
+    const created = await (await bookingsHandler(
+      post('/api/bookings', { sessionId: session.id, guests: [{ name: 'Guest One', email: 'g1@example.com' }] }, memberCookie()),
+    )).json();
+    const guestId = created.booking.guests[0].guestId;
+
+    const response = await staffLinksHandler(
+      post('/api/staff/links', { action: 'guest-waiver', bookingId: created.booking.bookingId, guestId }, staffCookie()),
+    );
+    expect(response.status).toBe(200);
+
+    const body = await response.json();
+    expect(body.guestName).toBe('Guest One');
+
+    // The rotated token must resolve to that guest's waiver.
+    const token = new URL(body.url).hash.slice(1);
+    const { getWaiverByToken } = await import('../src/domain/waivers.ts');
+    const context = await (await import('../src/domain/context.ts')).buildContext();
+    expect((await getWaiverByToken(context, token))?.guestId).toBe(guestId);
+  });
+
+  it('refuses a guest id that is not on the booking', async () => {
+    const created = await (await bookingsHandler(
+      post('/api/bookings', { sessionId: session.id, guests: [{ name: 'G', email: 'g@example.com' }] }, memberCookie()),
+    )).json();
+
+    const response = await staffLinksHandler(
+      post('/api/staff/links', { action: 'guest-waiver', bookingId: created.booking.bookingId, guestId: 'not-a-guest' }, staffCookie()),
+    );
+    expect(response.status).toBe(404);
   });
 });

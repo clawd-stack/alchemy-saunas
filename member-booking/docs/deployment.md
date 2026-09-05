@@ -14,6 +14,15 @@ in a chat transcript.
 | **Build settings** | In `netlify.toml` at the **repository root**: base `member-booking`, build `npm run typecheck`, publish `web`, functions `netlify/functions`. Leave every UI build field empty so this file stays authoritative. |
 | **Admin access** | `clawd@ragan.com.au` is seeded as an admin, so there is a working way into the config and door list screens on first deploy. |
 
+## Migrations are immutable once applied
+
+Never edit a migration in `netlify/database/migrations/` that has already run.
+Netlify DB checksums them and refuses the deploy with "migration ... has been
+modified after being applied", which blocks the publish. Add a new numbered
+migration instead. Local runs and CI will not catch this, because they build
+the schema from scratch each time; only a deploy against an existing database
+sees it.
+
 ## A trap worth knowing about
 
 The first deploy reported "ready" while having done nothing useful: no build
@@ -56,6 +65,20 @@ cancellation notices to the Netlify function log and delivers them to nobody.
 That is enough to test with: open the function log in the Netlify app, find
 the sign-in link, tap it. It is not enough to open the channel to members,
 because members cannot sign in and guests never receive a waiver.
+
+**You can run the pilot before any of this is set.** Staff can hand out both
+kinds of link in person from the door list:
+
+- **Sign a member in**: enter their membership email, get a one-time link, let
+  them open it on their own phone. Their membership is still checked against
+  Hapana first, so a paused member gets nothing. Once opened they stay signed
+  in for 30 days and can book from home afterwards.
+- **Sign waiver**: on any unsigned guest, hand the tablet over and they sign on
+  the spot. This is how guests without email are handled permanently, not only
+  while email is unconfigured.
+
+That covers everything except the automatic reminders. Set up email when
+convenient rather than before go-live.
 
 **Recommended: send through Google Workspace.** Alchemy already has it, so
 there is no new vendor, no monthly cost, no new domain reputation to build,
