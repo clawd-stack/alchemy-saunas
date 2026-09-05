@@ -4,22 +4,18 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
-  <title>Configuration, Alchemy member booking</title>
+  <title>Settings, Alchemy East Fremantle</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/app.css">
 </head>
 <body>
   <header class="site-header" id="site-header"></header>
 
   <main class="wrap">
-    <div class="page-head">
-      <p class="eyebrow">Alchemy East Fremantle</p>
-    <h1>Member channel configuration</h1>
-    <p class="lede">Changes take effect immediately, with no deploy. The allocation cannot be set above what the venue ceiling allows.</p>
-    </div>
+    <h1>Settings</h1>
     <div id="messages"></div>
 
-    <section class="card" id="signin-card">
-      <h2 style="margin-top:0">Sign in</h2>
+    <section class="card card--pad" id="signin-card">
       <form id="signin-form" class="stack">
         <div>
           <label for="email">Email</label>
@@ -35,28 +31,24 @@
 
     <section id="admin-section" class="hidden">
       <div id="warnings"></div>
-      <div id="capacity-summary" class="card"></div>
-      <form id="config-form" class="card stack"></form>
-      <div class="card">
-        <h2 style="margin-top:0">Members</h2>
-        <p class="muted" style="margin-top:0">Members the venue holds itself. Hapana is asked first on every sign-in; this list covers anyone Hapana does not know, and everyone while no Hapana key is set.</p>
-        <div id="members"></div>
-      </div>
-      <div class="card">
-        <h2 style="margin-top:0">Sign-in accounts</h2>
-        <p class="muted" style="margin-top:0">Who can sign in, and with what. Issue a password here and pass it on however you like; a generated one is shown once and never again.</p>
-        <div id="credentials"></div>
-      </div>
-      <div class="card">
-        <h2 style="margin-top:0">Staff accounts</h2>
-        <p class="muted" style="margin-top:0">Who can open the door list and this screen. Deactivating takes effect on their next sign-in; a session already open ends within 12 hours.</p>
-        <div id="staff"></div>
-      </div>
-      <div class="card">
-        <h2 style="margin-top:0">Capacity audit</h2>
-        <p class="muted" style="margin-top:0">Every booking, cancellation and refusal, with the occupancy at the time.</p>
-        <div id="audit"></div>
-      </div>
+      <div class="card" id="capacity-summary"></div>
+      <div class="card" id="own-account"></div>
+      <div class="card" id="email-check"></div>
+
+      <h2>Channel</h2>
+      <form id="config-form" class="card card--pad stack"></form>
+
+      <h2>Members</h2>
+      <div class="card" id="members"></div>
+
+      <h2>Sign-in accounts</h2>
+      <div class="card" id="credentials"></div>
+
+      <h2>Staff</h2>
+      <div class="card" id="staff"></div>
+
+      <h2>Audit</h2>
+      <div class="card" id="audit"></div>
     </section>
   </main>
   <script type="module" src="/admin.js"></script>

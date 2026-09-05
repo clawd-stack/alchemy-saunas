@@ -127,18 +127,3 @@ function createHost() {
   document.getElementById('messages').after(host);
   return host;
 }
-
-/** A signed-in banner with sign-out, and a way to change your own password. */
-export function accountControls({ messages, onSignedOut }) {
-  const change = el('button', { class: 'btn-quiet btn-small', type: 'button', text: 'Change password' });
-  change.addEventListener('click', () => showPasswordChange({ messages }));
-
-  const out = el('button', { class: 'btn-quiet btn-small', type: 'button', text: 'Sign out' });
-  out.addEventListener('click', async () => {
-    await api.post('/api/auth/session', {});
-    if (onSignedOut) onSignedOut();
-    else location.reload();
-  });
-
-  return el('div', { class: 'row' }, [change, out]);
-}

@@ -19,6 +19,7 @@ const messages = document.getElementById('messages');
 const signinCard = document.getElementById('signin-card');
 const bookingSection = document.getElementById('booking-section');
 const daysEl = document.getElementById('days');
+const monthEl = document.getElementById('month');
 const slotsEl = document.getElementById('slots');
 const slotsEmpty = document.getElementById('slots-empty');
 const guestCard = document.getElementById('guest-card');
@@ -26,7 +27,6 @@ const guestFields = document.getElementById('guest-fields');
 const amountEl = document.getElementById('amount');
 const guestCountEl = document.getElementById('guest-count');
 const selectedLabel = document.getElementById('selected-label');
-const policyNote = document.getElementById('policy-note');
 const myBookings = document.getElementById('my-bookings');
 
 const state = {
@@ -40,7 +40,8 @@ const state = {
 };
 
 const dayFormat = new Intl.DateTimeFormat('en-AU', { weekday: 'short', timeZone: 'Australia/Perth' });
-const domFormat = new Intl.DateTimeFormat('en-AU', { day: 'numeric', month: 'short', timeZone: 'Australia/Perth' });
+const domFormat = new Intl.DateTimeFormat('en-AU', { day: 'numeric', timeZone: 'Australia/Perth' });
+const monthFormat = new Intl.DateTimeFormat('en-AU', { month: 'long', year: 'numeric', timeZone: 'Australia/Perth' });
 const timeFormat = new Intl.DateTimeFormat('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Australia/Perth' });
 
 function dayKey(iso) {
@@ -60,11 +61,6 @@ mountSignIn({
   onSignedIn: loadSessions,
 });
 
-document.getElementById('signout').addEventListener('click', async () => {
-  await api.post('/api/auth/session', {});
-  location.href = '/booking.html';
-});
-
 /* ---------------------------------------------------------------- */
 /* Sessions                                                          */
 /* ---------------------------------------------------------------- */
@@ -77,12 +73,9 @@ async function loadSessions() {
     state.sessions = data.sessions;
     state.signedIn = data.signedIn;
 
-    document.getElementById('member-name').textContent = data.memberName ?? '';
     signinCard.classList.toggle('hidden', data.signedIn);
     bookingSection.classList.toggle('hidden', !data.signedIn);
-    policyNote.textContent =
-      `Free cancellation up to ${state.policy.cancellationCutoffHours} hours before the session starts. ` +
-      `Guest spots are ${money(state.policy.guestPrice)} each, collected by card at the venue.`;
+    document.getElementById('heading').textContent = data.signedIn ? 'Book a session' : 'Member booking';
 
     renderDays();
     if (data.signedIn) loadMyBookings();
@@ -112,10 +105,15 @@ function renderDays() {
     state.selectedDay = keys.find((key) => byDay.get(key).some((s) => s.bookable)) ?? keys[0] ?? null;
   }
 
+  // The month sits above the strip rather than inside every tile: it is the
+  // same word on almost every one, and repeating it forced the tiles wider
+  // than the row could show.
+  const selectedFirst = byDay.get(state.selectedDay)?.[0];
+  monthEl.textContent = selectedFirst ? monthFormat.format(new Date(selectedFirst.startsAt)) : '';
+
   daysEl.innerHTML = '';
   for (const key of keys) {
     const first = byDay.get(key)[0];
-    const open = byDay.get(key).filter((s) => s.bookable).length;
     daysEl.append(
       el('button', {
         class: 'day',
@@ -128,9 +126,8 @@ function renderDays() {
           renderDays();
         },
       }, [
-        el('div', { class: 'dow', text: dayFormat.format(new Date(first.startsAt)) }),
-        el('div', { class: 'dom', text: domFormat.format(new Date(first.startsAt)) }),
-        el('div', { class: 'left', text: open > 0 ? `${open} times` : 'full' }),
+        el('span', { class: 'dow', text: dayFormat.format(new Date(first.startsAt)) }),
+        el('span', { class: 'dom', text: domFormat.format(new Date(first.startsAt)) }),
       ]),
     );
   }
@@ -152,11 +149,8 @@ function renderSlots(sessions) {
         'aria-pressed': String(selected),
         onclick: () => selectSession(session),
       }, [
-        el('div', { class: 'time', text: timeFormat.format(new Date(session.startsAt)) }),
-        el('div', {
-          class: 'left',
-          text: session.spotsRemaining > 0 ? `${session.spotsRemaining} of ${session.capacity} left` : 'Full',
-        }),
+        el('span', { class: 'time', text: timeFormat.format(new Date(session.startsAt)) }),
+        el('span', { class: 'left', text: session.spotsRemaining > 0 ? `${session.spotsRemaining} left` : 'Full' }),
       ]),
     );
   }
@@ -166,9 +160,9 @@ function selectSession(session) {
   state.selectedSession = session;
   state.guests = [];
   guestCard.classList.remove('hidden');
+  const at = new Date(session.startsAt);
   selectedLabel.textContent =
-    `${dayFormat.format(new Date(session.startsAt))} ${domFormat.format(new Date(session.startsAt))}, ` +
-    `${timeFormat.format(new Date(session.startsAt))}. ${session.spotsRemaining} spots left.`;
+    `${dayFormat.format(at)} ${domFormat.format(at)} ${monthFormat.format(at).split(' ')[0]}, ${timeFormat.format(at)}`;
   renderDays();
   renderGuests();
   guestCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -196,7 +190,7 @@ function renderGuests() {
           }),
         ]),
         el('div', { style: 'margin-top:10px' }, [
-          el('label', { for: `guest-name-${index}`, text: 'Full name' }),
+          el('label', { for: `guest-name-${index}`, text: 'Name' }),
           el('input', {
             id: `guest-name-${index}`, type: 'text', value: guest.name, autocomplete: 'off',
             oninput: (event) => { state.guests[index].name = event.target.value; updateTotals(); },
@@ -208,7 +202,6 @@ function renderGuests() {
             id: `guest-email-${index}`, type: 'email', value: guest.email, autocomplete: 'off',
             oninput: (event) => { state.guests[index].email = event.target.value; updateTotals(); },
           }),
-          el('p', { class: 'hint', text: 'Their waiver goes to this address. Each guest signs their own.' }),
         ]),
       ]),
     );
@@ -219,10 +212,7 @@ function renderGuests() {
 function updateTotals() {
   const max = maxGuestsNow();
   amountEl.textContent = money(state.guests.length * state.policy.guestPrice);
-  guestCountEl.textContent =
-    max === 0
-      ? 'No room for guests in this session.'
-      : `${state.guests.length} of ${max} guest spots used.`;
+  guestCountEl.textContent = max === 0 ? 'No guest spots left' : `${state.guests.length} of ${max}`;
   document.getElementById('add-guest').disabled = state.guests.length >= max;
 }
 
@@ -262,7 +252,7 @@ document.getElementById('confirm').addEventListener('click', async () => {
     }
   } finally {
     button.disabled = false;
-    button.textContent = 'Confirm booking';
+    button.textContent = 'Confirm';
   }
 });
 

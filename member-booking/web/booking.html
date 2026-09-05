@@ -3,32 +3,23 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <!-- Private channel: keep it out of search results. This is a distribution
-       choice, not a security control; access is enforced server-side. -->
   <meta name="robots" content="noindex, nofollow">
-  <title>Member booking, Alchemy East Fremantle</title>
+  <title>Book, Alchemy East Fremantle</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/app.css">
 </head>
 <body>
   <header class="site-header" id="site-header"></header>
 
   <main class="wrap">
-    <div class="page-head">
-      <p class="eyebrow">Alchemy East Fremantle</p>
-    <h1>Member booking</h1>
-    <p class="lede" id="lede">Your member spot is included in your membership. Bring up to three guests at $35 each, paid by card at the venue.</p>
-    </div>
-
+    <h1 id="heading">Book a session</h1>
     <div id="messages"></div>
 
-    <!-- Sign in ------------------------------------------------------- -->
-    <section class="card" id="signin-card">
-      <h2 style="margin-top:0">Sign in</h2>
-      <p class="muted" style="margin-top:0">Use the email on your Alchemy membership and the password the venue gave you. If you do not have one yet, or have lost it, contact the venue.</p>
+    <section class="card card--pad" id="signin-card">
       <form id="signin-form" class="stack">
         <div>
           <label for="email">Email</label>
-          <input id="email" name="email" type="email" autocomplete="email" required placeholder="you@example.com">
+          <input id="email" name="email" type="email" autocomplete="email" required>
         </div>
         <div>
           <label for="password">Password</label>
@@ -38,49 +29,28 @@
       </form>
     </section>
 
-    <!-- Booking flow -------------------------------------------------- -->
     <section id="booking-section" class="hidden">
-      <div class="card">
-        <div class="row row--between">
-          <div>
-            <strong id="member-name"></strong>
-            <p class="muted" style="margin:2px 0 0">Signed in</p>
-          </div>
-          <button class="btn-quiet btn-small" id="signout">Sign out</button>
-        </div>
-      </div>
-
-      <h2>Choose a session</h2>
+      <p class="month" id="month"></p>
       <div class="days" id="days"></div>
       <div class="slots" id="slots"></div>
-      <p class="spinner" id="slots-empty" hidden>No sessions available on this day.</p>
+      <p class="spinner" id="slots-empty" hidden>No sessions this day.</p>
 
-      <div class="card hidden" id="guest-card">
-        <h2 style="margin-top:0">Who is coming?</h2>
-        <p class="muted" style="margin-top:0" id="selected-label"></p>
-
+      <div class="card card--pad hidden" id="guest-card">
+        <h3 id="selected-label"></h3>
         <div class="stack" id="guest-fields"></div>
-
-        <div class="row" style="margin-top:16px">
-          <button class="btn-quiet btn-small" id="add-guest" type="button">Add a guest</button>
-          <span class="muted" id="guest-count"></span>
+        <div class="row row--tight" style="margin-top:14px">
+          <button class="btn-quiet btn-small" id="add-guest" type="button">Add guest</button>
+          <span class="hint" id="guest-count" style="margin:0"></span>
         </div>
-
-        <div class="row row--between" style="margin-top:20px; align-items:flex-end">
-          <div>
-            <span class="muted">To pay at the door</span>
-            <div style="font-size:22px; font-weight:700" id="amount">$0.00</div>
-          </div>
-          <button class="btn-primary" id="confirm" type="button">Confirm booking</button>
+        <div class="total" style="margin:24px 0 16px">
+          <span class="muted">Due at the door</span>
+          <span class="amount" id="amount">$0.00</span>
         </div>
-        <p class="hint" id="policy-note"></p>
+        <button class="btn-primary" id="confirm" type="button">Confirm</button>
       </div>
 
-      <div class="row row--between" style="margin-top:36px">
-        <h2 id="bookings" style="margin:0">Your bookings</h2>
-        <a class="btn-quiet btn-small" href="/account.html" style="text-decoration:none">My account</a>
-      </div>
-      <div id="my-bookings" style="margin-top:14px"><p class="spinner">Loading…</p></div>
+      <h2>Your bookings</h2>
+      <div id="my-bookings"></div>
     </section>
   </main>
 
