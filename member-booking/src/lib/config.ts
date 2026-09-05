@@ -1,4 +1,5 @@
 import { BookingError } from './errors.ts';
+import { DEFAULT_WAIVER_TEXT, WAIVER_VERSION, type WaiverText } from './waiver-text.ts';
 import type { ConfigEntry, Store } from '../store/types.ts';
 
 /**
@@ -12,7 +13,13 @@ import type { ConfigEntry, Store } from '../store/types.ts';
  */
 
 export interface AppConfig {
-  venueMaximum: number;
+  /**
+   * Optional venue-wide ceiling across all channels. Null means not enforced,
+   * which is the shipped default: this channel owns a fixed allocation of
+   * spots per hour, and that allocation is the constraint that governs it.
+   * Set a number here only if there is a documented occupancy limit to hold.
+   */
+  venueMaximum: number | null;
   hapanaPublicCapacity: number;
   memberChannelCapacity: number;
   bookingWindowDays: number;
@@ -21,28 +28,32 @@ export interface AppConfig {
   guestPrice: number;
   sessionLengthMinutes: number;
   waiverVersion: string;
+  waiverText: WaiverText;
   operatingHours: Record<string, [string, string]>;
   bookingBackend: 'local' | 'hapana';
 }
 
 export const CONFIG_DEFAULTS: AppConfig = {
-  venueMaximum: 40,
-  hapanaPublicCapacity: 20,
+  venueMaximum: null,
+  hapanaPublicCapacity: 0,
   memberChannelCapacity: 10,
   bookingWindowDays: 14,
   cancellationCutoffHours: 3,
   maxGuestsPerMember: 3,
   guestPrice: 35,
   sessionLengthMinutes: 60,
-  waiverVersion: 'PLACEHOLDER-0',
+  waiverVersion: WAIVER_VERSION,
+  waiverText: DEFAULT_WAIVER_TEXT,
+  // 5am to 9pm, seven days. With 60 minute sessions the last one starts at
+  // 8pm and ends as the venue closes.
   operatingHours: {
-    mon: ['06:00', '20:00'],
-    tue: ['06:00', '20:00'],
-    wed: ['06:00', '20:00'],
-    thu: ['06:00', '20:00'],
-    fri: ['06:00', '20:00'],
-    sat: ['07:00', '18:00'],
-    sun: ['07:00', '18:00'],
+    mon: ['05:00', '21:00'],
+    tue: ['05:00', '21:00'],
+    wed: ['05:00', '21:00'],
+    thu: ['05:00', '21:00'],
+    fri: ['05:00', '21:00'],
+    sat: ['05:00', '21:00'],
+    sun: ['05:00', '21:00'],
   },
   bookingBackend: 'local',
 };
@@ -57,6 +68,7 @@ const KEY_MAP: Record<string, keyof AppConfig> = {
   guest_price: 'guestPrice',
   session_length_minutes: 'sessionLengthMinutes',
   waiver_version: 'waiverVersion',
+  waiver_text: 'waiverText',
   operating_hours: 'operatingHours',
   booking_backend: 'bookingBackend',
 };
@@ -94,8 +106,8 @@ export function validate(config: AppConfig): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   const positiveInt = (value: unknown) => Number.isInteger(value) && (value as number) > 0;
 
-  if (!positiveInt(config.venueMaximum)) {
-    issues.push({ key: 'venue_maximum', message: 'Venue maximum must be a whole number above zero.' });
+  if (config.venueMaximum !== null && !positiveInt(config.venueMaximum)) {
+    issues.push({ key: 'venue_maximum', message: 'Venue maximum must be a whole number above zero, or left blank for no ceiling.' });
   }
   if (!Number.isInteger(config.hapanaPublicCapacity) || config.hapanaPublicCapacity < 0) {
     issues.push({ key: 'hapana_public_capacity', message: 'Public capacity must be zero or a whole number.' });
@@ -104,9 +116,10 @@ export function validate(config: AppConfig): ValidationIssue[] {
     issues.push({ key: 'member_channel_capacity', message: 'Member channel capacity must be zero or a whole number.' });
   }
 
-  // The bound that matters. Public plus member allocation may never exceed the
-  // ceiling, whichever of the three values is being edited.
+  // The bound that matters, when a ceiling is configured at all: public plus
+  // member allocation may never exceed it, whichever value is being edited.
   if (
+    config.venueMaximum !== null &&
     Number.isInteger(config.memberChannelCapacity) &&
     Number.isInteger(config.hapanaPublicCapacity) &&
     Number.isInteger(config.venueMaximum) &&
@@ -139,6 +152,21 @@ export function validate(config: AppConfig): ValidationIssue[] {
   if (config.bookingBackend !== 'local' && config.bookingBackend !== 'hapana') {
     issues.push({ key: 'booking_backend', message: "Booking backend must be 'local' or 'hapana'." });
   }
+  const waiver = config.waiverText;
+  if (!waiver || typeof waiver !== 'object') {
+    issues.push({ key: 'waiver_text', message: 'Waiver text must be an object.' });
+  } else {
+    if (!waiver.declaration?.trim()) {
+      issues.push({ key: 'waiver_text', message: 'The waiver needs a declaration line for the guest to agree to.' });
+    }
+    if (!Array.isArray(waiver.clauses) || waiver.clauses.length === 0) {
+      issues.push({ key: 'waiver_text', message: 'The waiver needs at least one clause.' });
+    }
+    if (waiver.termsUrl && !/^https:\/\//.test(waiver.termsUrl)) {
+      issues.push({ key: 'waiver_text', message: 'The terms link must be an https URL.' });
+    }
+  }
+
   for (const [day, hours] of Object.entries(config.operatingHours ?? {})) {
     if (!Array.isArray(hours) || hours.length !== 2 || !/^\d{2}:\d{2}$/.test(hours[0] ?? '') || !/^\d{2}:\d{2}$/.test(hours[1] ?? '')) {
       issues.push({ key: 'operating_hours', message: `Operating hours for ${day} must be ["HH:MM", "HH:MM"].` });
@@ -154,6 +182,9 @@ export function validate(config: AppConfig): ValidationIssue[] {
  */
 export function requiresSourceNote(key: string, currentValue: unknown, nextValue: unknown): boolean {
   if (key !== 'venue_maximum') return false;
+  // Clearing the ceiling needs no source; setting or raising one does, because
+  // staff will then rely on the number.
+  if (nextValue === null || nextValue === undefined || nextValue === '') return false;
   return Number(nextValue) !== Number(currentValue);
 }
 

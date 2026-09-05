@@ -134,7 +134,7 @@ function mapAudit(row: any): AuditRow {
     memberChannelCapacity: toNumber(row.member_channel_capacity),
     publicBookedAtTime: toNumber(row.public_booked_at_time),
     venueTotalBookedAfter: toNumber(row.venue_total_booked_after),
-    venueMaximumAtTime: toNumber(row.venue_maximum_at_time),
+    venueMaximumAtTime: row.venue_maximum_at_time === null ? null : toNumber(row.venue_maximum_at_time),
     createdAt: iso(row.created_at),
   };
 }

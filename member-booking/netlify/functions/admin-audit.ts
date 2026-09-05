@@ -27,7 +27,9 @@ export default async (request: Request): Promise<Response> => {
     const to = dateKey ? new Date(from.getTime() + 24 * 3_600_000) : new Date();
 
     const rows = await context.store.audit.listForVenueBetween(context.venueId, from, to);
-    const breaches = rows.filter((row) => row.venueTotalBookedAfter > row.venueMaximumAtTime);
+    const breaches = rows.filter(
+      (row) => row.venueMaximumAtTime !== null && row.venueTotalBookedAfter > row.venueMaximumAtTime,
+    );
 
     return json(request, {
       ok: true,

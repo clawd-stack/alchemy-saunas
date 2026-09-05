@@ -2,7 +2,7 @@
 
 Record what a live probe established, so the next person does not repeat it.
 
-**Status as at 2026-09-04: unresolved.** Nothing below has been confirmed
+**Status as at 2026-09-05: unresolved, and not blocking.** Nothing below has been confirmed
 against the live account.
 
 ## Why it is still unresolved
@@ -15,7 +15,9 @@ it as a policy denial (403 on CONNECT), not a transport failure. It is not
 something the build can route around.
 
 The build therefore does not depend on the answer. Pattern B ships by default
-and needs no write access. See the README.
+and needs read access only, so the channel can go live without this resolved.
+Answering it only decides whether the two channels share a pool or keep
+disjoint ones. See the README.
 
 ## How to resolve it
 

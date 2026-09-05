@@ -47,6 +47,17 @@ function render(data) {
     notice(messages, 'good', `Signed on ${new Date(waiver.signedAt).toLocaleString('en-AU')}. Nothing further to do.`);
   }
 
+  const termsLink = text.termsUrl
+    ? el('p', { style: 'margin:0 0 20px' }, [
+        el('a', {
+          href: text.termsUrl,
+          target: '_blank',
+          rel: 'noopener noreferrer',
+          style: 'color:var(--accent);font-weight:600',
+        }, [text.termsLabel || 'Read the full Terms of Use']),
+      ])
+    : null;
+
   const clauses = text.clauses.map((clause) =>
     el('div', { style: 'margin-bottom:16px' }, [
       el('strong', { text: clause.heading }),
@@ -54,7 +65,13 @@ function render(data) {
     ]),
   );
 
-  content.append(el('section', { class: 'card' }, [el('p', { class: 'muted', style: 'margin-top:0', text: text.intro }), ...clauses]));
+  content.append(
+    el('section', { class: 'card' }, [
+      el('p', { class: 'muted', style: 'margin-top:0', text: text.intro }),
+      termsLink,
+      ...clauses,
+    ]),
+  );
 
   if (waiver.status === 'signed') return;
 

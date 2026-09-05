@@ -38,25 +38,40 @@ export default async (request: Request): Promise<Response> => {
     detail: process.env.EMAIL_PROVIDER ?? 'console (logs only, nothing is delivered)',
   });
 
-  checks.push({
-    name: 'waiver_wording',
-    ok: !IS_PLACEHOLDER,
-    detail: IS_PLACEHOLDER ? `placeholder ${WAIVER_VERSION}: awaiting Alex Beagley` : WAIVER_VERSION,
-  });
+  if (context) {
+    const version = context.config.waiverVersion;
+    const isPlaceholder = IS_PLACEHOLDER || version.startsWith('PLACEHOLDER');
+    checks.push({
+      name: 'waiver_wording',
+      ok: !isPlaceholder,
+      detail: isPlaceholder ? `placeholder ${version}` : `${version}, agreeing to ${context.config.waiverText.termsUrl}`,
+    });
+  }
 
   if (context) {
     const entries = await context.store.config.all();
     const ceiling = entries.find((entry) => entry.key === 'venue_maximum');
+    // A ceiling is optional. It is only a problem when one is set without a
+    // recorded source, because staff would then be relying on an unsourced number.
     checks.push({
       name: 'venue_maximum_source',
-      ok: Boolean(ceiling?.sourceNote) && !/provisional/i.test(ceiling?.sourceNote ?? ''),
-      detail: ceiling?.sourceNote ?? 'no documented source recorded',
+      ok: context.config.venueMaximum === null || Boolean(ceiling?.sourceNote),
+      detail:
+        context.config.venueMaximum === null
+          ? `no venue-wide ceiling enforced; this channel sells ${context.config.memberChannelCapacity} spots per hour`
+          : ceiling?.sourceNote ?? 'a ceiling is set with no documented source',
     });
     const issues = validate(context.config);
     checks.push({
       name: 'config_valid',
       ok: issues.length === 0,
       detail: issues.length === 0 ? 'all settings within bounds' : issues.map((i) => i.message).join(' '),
+    });
+    const hours = Object.entries(context.config.operatingHours ?? {});
+    checks.push({
+      name: 'operating_hours',
+      ok: hours.length > 0,
+      detail: hours.length > 0 ? `${hours[0]?.[1]?.[0]} to ${hours[0]?.[1]?.[1]}, ${hours.length} days configured` : 'none configured',
     });
     checks.push({
       name: 'booking_backend',

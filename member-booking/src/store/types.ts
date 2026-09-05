@@ -28,7 +28,8 @@ export interface CreateBookingInput {
   memberEmail: string;
   guests: GuestInput[];
   defaultChannelCapacity: number;
-  venueMaximum: number;
+  /** Null means no venue-wide ceiling is enforced. */
+  venueMaximum: number | null;
   /** Occupancy already sold through the public channel. -1 means "unknown", which fails closed. */
   publicBooked: number;
   guestPrice: number;
@@ -63,7 +64,8 @@ export interface CancelBookingInput {
   memberId: string | null;
   cutoffHours: number;
   defaultChannelCapacity: number;
-  venueMaximum: number;
+  /** Null means no venue-wide ceiling is enforced. */
+  venueMaximum: number | null;
   reason?: string;
   enforceCutoff?: boolean;
   actor?: string;
@@ -167,7 +169,7 @@ export interface AuditRow {
   memberChannelCapacity: number;
   publicBookedAtTime: number;
   venueTotalBookedAfter: number;
-  venueMaximumAtTime: number;
+  venueMaximumAtTime: number | null;
   createdAt: string;
 }
 
@@ -198,7 +200,8 @@ export interface Store {
       cutoffHours: number;
       guestPrice: number;
       defaultChannelCapacity: number;
-      venueMaximum: number;
+      /** Null means no venue-wide ceiling is enforced. */
+  venueMaximum: number | null;
       actor?: string;
     }): Promise<CancelBookingResult>;
     get(bookingId: string): Promise<BookingRecord | null>;

@@ -3,7 +3,7 @@ import { getWaiverByToken, signWaiver } from '../../src/domain/waivers.ts';
 import { BookingError } from '../../src/lib/errors.ts';
 import { clientIp, errorResponse, json, preflight, readJson, requireString } from '../../src/lib/http.ts';
 import { formatLocal } from '../../src/lib/time.ts';
-import { WAIVER_TEXT } from '../../src/lib/waiver-text.ts';
+
 
 /**
  * GET  /api/waiver?token=...   fetch the waiver a guest was emailed
@@ -33,7 +33,7 @@ export default async (request: Request): Promise<Response> => {
           venueName: context.venueName,
           version: waiver.waiverVersion,
         },
-        text: WAIVER_TEXT,
+        text: context.config.waiverText,
       });
     }
 

@@ -52,17 +52,26 @@ describe('timetable generation', () => {
       expect(slot.endsAt.getTime() - slot.startsAt.getTime()).toBe(60 * 60_000);
       expect(label).toBeTruthy();
     }
-    // Monday runs 06:00 to 20:00, so 14 hourly slots.
+    // 5am to 9pm, so 16 hourly slots, the last starting at 8pm.
     const monday = slots.filter((slot) => localDateKey(slot.startsAt, TZ) === '2026-09-07');
-    expect(monday).toHaveLength(14);
+    expect(monday).toHaveLength(16);
+    expect(formatLocal(monday[0]!.startsAt, TZ)).toContain('5:00 am');
+    expect(formatLocal(monday.at(-1)!.startsAt, TZ)).toContain('8:00 pm');
+    // The last session ends exactly as the venue closes.
+    expect(formatLocal(monday.at(-1)!.endsAt, TZ)).toContain('9:00 pm');
   });
 
-  it('respects a shorter weekend timetable', () => {
+  it('runs the same hours at the weekend', () => {
+    const from = localWallClockToInstant('2026-09-12', '00:00', TZ);
+    const to = localWallClockToInstant('2026-09-12', '23:59', TZ);
+    expect(generateSlots(CONFIG_DEFAULTS, TZ, 'east-fremantle', from, to)).toHaveLength(16);
+  });
+
+  it('respects a shorter timetable if one is configured', () => {
     const config = { ...CONFIG_DEFAULTS, operatingHours: { ...CONFIG_DEFAULTS.operatingHours, sat: ['07:00', '18:00'] as [string, string] } };
     const from = localWallClockToInstant('2026-09-12', '00:00', TZ);
     const to = localWallClockToInstant('2026-09-12', '23:59', TZ);
-    const slots = generateSlots(config, TZ, 'east-fremantle', from, to);
-    expect(slots).toHaveLength(11);
+    expect(generateSlots(config, TZ, 'east-fremantle', from, to)).toHaveLength(11);
   });
 
   it('skips a day with no configured hours', () => {

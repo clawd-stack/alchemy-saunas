@@ -13,20 +13,30 @@ describe('config validation', () => {
     expect(validate(CONFIG_DEFAULTS)).toEqual([]);
   });
 
-  it('rejects an allocation that would breach the venue ceiling', () => {
-    const issues = validate({ ...CONFIG_DEFAULTS, memberChannelCapacity: 25 });
+  it('leaves the ceiling unenforced by default, so any sane allocation is allowed', () => {
+    // Shipped default is no venue-wide ceiling: the spots-per-hour allocation
+    // is the only limit, so a larger allocation is not a validation error.
+    expect(CONFIG_DEFAULTS.venueMaximum).toBeNull();
+    expect(validate({ ...CONFIG_DEFAULTS, memberChannelCapacity: 25 })).toEqual([]);
+  });
+
+  it('rejects an allocation that would breach a ceiling once one is set', () => {
+    const withCeiling = { ...CONFIG_DEFAULTS, venueMaximum: 40, hapanaPublicCapacity: 20 };
+    const issues = validate({ ...withCeiling, memberChannelCapacity: 25 });
     expect(issues).toHaveLength(1);
     expect(issues[0]?.key).toBe('member_channel_capacity');
     expect(issues[0]?.message).toContain('above the venue maximum');
   });
 
-  it('rejects lowering the venue maximum below what is already allocated', () => {
-    const issues = validate({ ...CONFIG_DEFAULTS, venueMaximum: 25 });
+  it('rejects lowering a ceiling below what is already allocated', () => {
+    const withCeiling = { ...CONFIG_DEFAULTS, venueMaximum: 40, hapanaPublicCapacity: 20 };
+    const issues = validate({ ...withCeiling, venueMaximum: 25 });
     expect(issues.some((issue) => issue.key === 'member_channel_capacity')).toBe(true);
   });
 
-  it('accepts an allocation that exactly fills the ceiling', () => {
-    expect(validate({ ...CONFIG_DEFAULTS, memberChannelCapacity: 20 })).toEqual([]);
+  it('accepts an allocation that exactly fills a configured ceiling', () => {
+    const withCeiling = { ...CONFIG_DEFAULTS, venueMaximum: 40, hapanaPublicCapacity: 20 };
+    expect(validate({ ...withCeiling, memberChannelCapacity: 20 })).toEqual([]);
   });
 
   it('rejects nonsense values', () => {
@@ -49,13 +59,27 @@ describe('config validation', () => {
 describe('config writes', () => {
   it('refuses the write and reports the issue rather than half-applying it', async () => {
     const store = createMemoryStore();
+    await store.config.set('venue_maximum', 40, 'setup');
+    await store.config.set('hapana_public_capacity', 20, 'setup');
+
     const { config, issues } = await updateConfig(store, { member_channel_capacity: 25 }, 'james@example.com');
     expect(issues).toHaveLength(1);
+    // The rejected value must not have been written.
     expect(config.memberChannelCapacity).toBe(CONFIG_DEFAULTS.memberChannelCapacity);
-    expect(await store.config.all()).toEqual([]);
+    const stored = await store.config.all();
+    expect(stored.find((entry) => entry.key === 'member_channel_capacity')).toBeUndefined();
   });
 
-  it('requires a documented source before the venue maximum can change', async () => {
+  it('lets a ceiling be cleared without a documented source', async () => {
+    const store = createMemoryStore();
+    await store.config.set('venue_maximum', 40, 'setup', 'Certificate TOEF-1');
+
+    const { config, issues } = await updateConfig(store, { venue_maximum: null }, 'james@example.com');
+    expect(issues).toEqual([]);
+    expect(config.venueMaximum).toBeNull();
+  });
+
+  it('requires a documented source before a venue ceiling can be set', async () => {
     const store = createMemoryStore();
     const refused = await updateConfig(store, { venue_maximum: 60 }, 'james@example.com');
     expect(refused.issues[0]?.message).toContain('documented source');

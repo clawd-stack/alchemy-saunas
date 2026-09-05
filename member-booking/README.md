@@ -13,18 +13,24 @@ overselling the room.
 
 ## Status
 
-Built and tested. **Not yet ready to point members at**, because of four
-external dependencies that are not the build's to resolve. `GET /api/health`
-reports on all of them and says plainly whether the channel is safe to open.
+Built and tested. The product decisions are settled:
 
-| Blocker | Owner | Effect |
-|---|---|---|
-| Venue maximum has no documentary source | James | Ceiling is set to 40 provisionally. Must trace to the certificate of approval. |
-| Guest waiver wording is placeholder text | Alex Beagley via James | The waiver flow works; the words in it are not legal wording and are labelled as such in the UI. |
-| Hapana write capability unconfirmed | Git, needs network access to Hapana | Ships as Pattern B, which needs no write access. See below. |
-| East Fremantle operating hours unconfirmed | James | Timetable runs on a placeholder 06:00–20:00 weekdays, 07:00–18:00 weekends. One config change to correct. |
+| Setting | Value |
+|---|---|
+| Spots per hour | **10**, the limit that governs bookings |
+| Operating hours | **5am to 9pm, seven days**, last session starts 8pm |
+| Venue-wide ceiling | **Not enforced.** Optional, off by default |
+| Guest waiver | Alchemy's published conditions, with the website Terms of Use as the binding document |
+| Guests | Up to 3 per member, $35 each, EFTPOS at the door |
 
-None of these blocks development. All of them block go-live.
+What remains before members can be pointed at it is deployment rather than
+design: a database, Hapana credentials, a real email provider, and the Webflow
+page. `GET /api/health` reports on each and says plainly whether the channel is
+safe to open.
+
+One open item, which does not block: **Hapana write capability** is still
+unconfirmed, because the build environment cannot reach Hapana. It ships as
+Pattern B, which needs no write access, so nothing has to change to go live.
 
 ### The Hapana question, and why it did not block the build
 
@@ -60,19 +66,19 @@ This is the property the build is actually for, so it is worth being explicit.
 
 Every booking goes through one database function, `create_member_booking` in
 `db/schema.sql`. Nothing else may insert a booking. That function takes a row
-lock on the session, then evaluates the PRD 5.3 rules in order inside the same
+lock on the session, then evaluates the rules in order inside the same
 transaction:
 
 1. Guest count within bounds, and every guest has a name and an email.
 2. The member does not already hold a live booking for this session. A partial
    unique index enforces this too, so it cannot be raced.
-3. The request fits this channel's ringfenced allocation.
-4. Total occupancy across channels, plus this request, stays at or under the
-   venue maximum. This check is independent of Hapana even under Pattern A,
-   where Hapana also enforces its own.
-
-If occupancy cannot be established, the booking is refused. Fail closed, never
-open.
+3. **The request fits the 10 spots per hour this channel sells.** This is the
+   rule that governs the build.
+4. Optionally, total occupancy across channels stays at or under a configured
+   venue ceiling. No ceiling is configured by default, so this check is off;
+   when one is set it is enforced strictly, independently of what Hapana
+   believes, and a booking is refused rather than guessed at if occupancy
+   cannot be established.
 
 Every book, cancel and refusal is written to `capacity_audit` with the
 occupancy at the time. If the ceiling is ever questioned, that table is the
@@ -89,12 +95,12 @@ seventeen clean refusals. It runs against real Postgres.
 
 ```bash
 npm install
-npm test          # 86 tests, no database or network needed
+npm test          # 93 tests, no database or network needed
 npm run typecheck
 ```
 
 The suite runs against an in-memory store and a Hapana mock, so it stays
-offline-clean. To also run the 18 Postgres integration tests, which are the
+offline-clean. To also run the 19 Postgres integration tests, which are the
 ones that prove the concurrency behaviour:
 
 ```bash
@@ -135,8 +141,7 @@ printed to the function log: that is how you sign in locally.
    and blocks everyone else. Nothing sensitive lives in the page: it calls the
    API for everything.
 6. **Before opening it to members**, load `/api/health` and confirm
-   `readyForMembers` is true. It will not be until the four blockers above are
-   closed.
+   `readyForMembers` is true.
 
 ---
 
@@ -152,7 +157,7 @@ src/domain/          Booking, membership, sessions, waivers, door list. The rule
 netlify/functions/   The API. One file per route, plus two scheduled jobs.
 web/                 Booking page, door list, admin config, guest waiver.
 scripts/             The Hapana probe.
-tests/               104 tests, of which 18 need Postgres.
+tests/               112 tests, of which 19 need Postgres.
 ```
 
 Three ideas keep this maintainable:
@@ -161,8 +166,10 @@ Three ideas keep this maintainable:
   live field names could not be confirmed, so each lookup tries several
   spellings. When the probe returns a real payload, that one file changes and
   nothing else moves.
-- **All configuration sits in one store**, editable without a deploy, with the
-  ceiling bound enforced on write rather than described in a comment.
+- **All configuration sits in one store**, editable without a deploy. That
+  includes the guest waiver wording: changing the words a guest agrees to is a
+  config edit, not a release. The version is stamped on every signature, so
+  which text a guest agreed to stays provable after the wording changes.
 - **No business rule is expressed twice.** The capacity rules exist only in
   `create_member_booking`; the API layer calls it rather than reimplementing it.
 

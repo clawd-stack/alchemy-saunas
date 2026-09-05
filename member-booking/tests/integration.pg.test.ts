@@ -42,7 +42,7 @@ suite('create_member_booking against Postgres', () => {
     externalSessionId: string,
     memberId: string,
     guestCount: number,
-    options: { capacity?: number; venueMaximum?: number; publicBooked?: number } = {},
+    options: { capacity?: number; venueMaximum?: number | null; publicBooked?: number } = {},
   ) {
     const guests = Array.from({ length: guestCount }, (_, i) => ({
       name: `Guest ${i + 1}`,
@@ -53,7 +53,7 @@ suite('create_member_booking against Postgres', () => {
         ${VENUE_ID}, ${externalSessionId}, ${startsAt}, ${endsAt},
         ${memberId}, ${`Member ${memberId}`}, ${`${memberId}@example.com`},
         ${sql.json(guests as never)},
-        ${options.capacity ?? 10}, ${options.venueMaximum ?? 40}, ${options.publicBooked ?? 20},
+        ${options.capacity ?? 10}, ${options.venueMaximum === undefined ? 40 : options.venueMaximum}, ${options.publicBooked ?? 20},
         ${35}, ${3}, ${memberId}
       ) as result
     `;
@@ -134,7 +134,32 @@ suite('create_member_booking against Postgres', () => {
     expect(results.filter((result) => result.ok)).toHaveLength(1);
   });
 
-  it('fails closed when occupancy is unknown', async () => {
+  it('sells its full allocation when no venue ceiling is configured', async () => {
+    const session = sessionKey();
+
+    // No ceiling and unknown public occupancy: the channel's own allocation of
+    // 10 is the only limit, and it must still be honoured exactly.
+    const results = await Promise.all(
+      Array.from({ length: 14 }, (_, index) =>
+        book(session, `noceiling-${index}`, 0, { capacity: 10, venueMaximum: null, publicBooked: -1 }),
+      ),
+    );
+    expect(results.filter((result) => result.ok)).toHaveLength(10);
+    expect(results.filter((result) => !result.ok && result.code === 'SESSION_FULL')).toHaveLength(4);
+
+    const rows = await sql<Array<{ booked: number; ceilings: number }>>`
+      select coalesce(sum(b.spots_total), 0)::int as booked,
+             (select count(*) from capacity_audit a join sessions s2 on s2.id = a.session_id
+               where s2.external_session_id = ${session} and a.venue_maximum_at_time is not null)::int as ceilings
+      from bookings b join sessions s on s.id = b.session_id
+      where s.external_session_id = ${session} and b.status = 'confirmed'
+    `;
+    expect(Number(rows[0]!.booked)).toBe(10);
+    // The audit records that no ceiling applied, rather than inventing one.
+    expect(Number(rows[0]!.ceilings)).toBe(0);
+  });
+
+  it('fails closed when occupancy is unknown and a ceiling IS configured', async () => {
     const session = sessionKey();
     expect(await book(session, 'unknown-1', 0, { publicBooked: -1 })).toMatchObject({
       ok: false,

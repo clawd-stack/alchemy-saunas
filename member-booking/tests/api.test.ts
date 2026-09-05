@@ -254,14 +254,26 @@ describe('admin config', () => {
     expect((await adminConfigHandler(get('/api/admin/config', staffCookie('door')))).status).toBe(403);
   });
 
-  it('reports the outstanding warnings to a manager', async () => {
+  it('reports the live configuration to a manager, with no outstanding warnings by default', async () => {
     const body = await (await adminConfigHandler(get('/api/admin/config', staffCookie('manager')))).json();
     expect(body.ok).toBe(true);
-    expect(body.warnings.some((warning: string) => warning.includes('waiver'))).toBe(true);
-    expect(body.warnings.some((warning: string) => warning.includes('certificate of approval'))).toBe(true);
+    expect(body.config.memberChannelCapacity).toBe(10);
+    // No ceiling is enforced, and the waiver is real wording rather than a
+    // placeholder, so there is nothing to warn about out of the box.
+    expect(body.config.venueMaximum).toBeNull();
+    expect(body.warnings).toEqual([]);
   });
 
-  it('rejects an allocation that breaches the ceiling, with a usable message', async () => {
+  it('warns when a ceiling is set without a recorded source', async () => {
+    await store.config.set('venue_maximum', 40, 'setup');
+    const body = await (await adminConfigHandler(get('/api/admin/config', staffCookie('manager')))).json();
+    expect(body.warnings.some((warning: string) => warning.includes('no documented source'))).toBe(true);
+  });
+
+  it('rejects an allocation that breaches a configured ceiling, with a usable message', async () => {
+    await store.config.set('venue_maximum', 40, 'setup', 'Certificate TOEF-1');
+    await store.config.set('hapana_public_capacity', 20, 'setup');
+
     const response = await adminConfigHandler(
       new Request(`${BASE}/api/admin/config`, {
         method: 'PATCH',
@@ -275,15 +287,67 @@ describe('admin config', () => {
     expect(body.code).toBe('CONFIG_INVALID');
     expect(body.issues[0].message).toContain('above the venue maximum');
   });
+
+  it('saves edited waiver wording without a deploy', async () => {
+    const response = await adminConfigHandler(
+      new Request(`${BASE}/api/admin/config`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json', cookie: staffCookie('admin') },
+        body: JSON.stringify({
+          updates: {
+            waiver_text: {
+              version: 'ALCHEMY-TOU-2026-10',
+              title: 'Guest acknowledgement',
+              intro: 'Please read and sign.',
+              termsUrl: 'https://alchemysaunas.com.au/terms-of-use',
+              termsLabel: 'Terms of Use',
+              clauses: [{ heading: 'Age', body: 'You must be 18 or over.' }],
+              declaration: 'I agree.',
+            },
+          },
+        }),
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect((await response.json()).config.waiverText.clauses).toHaveLength(1);
+  });
+
+  it('refuses waiver wording with no declaration for the guest to agree to', async () => {
+    const response = await adminConfigHandler(
+      new Request(`${BASE}/api/admin/config`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json', cookie: staffCookie('admin') },
+        body: JSON.stringify({
+          updates: { waiver_text: { version: 'X', clauses: [{ heading: 'A', body: 'B' }], declaration: '' } },
+        }),
+      }),
+    );
+    expect(response.status).toBe(400);
+  });
 });
 
 describe('GET /api/health', () => {
-  it('reports the channel as not ready while blockers remain', async () => {
+  it('passes the waiver, hours and capacity checks now they are confirmed', async () => {
     const body = await (await healthHandler(get('/api/health'))).json();
-    expect(body.readyForMembers).toBe(false);
+    type Check = { name: string; ok: boolean; detail: string };
+    const byName = new Map<string, Check>(
+      (body.checks as Check[]).map((check) => [check.name, check]),
+    );
 
+    expect(byName.get('waiver_wording')?.ok).toBe(true);
+    expect(byName.get('venue_maximum_source')?.ok).toBe(true);
+    expect(byName.get('venue_maximum_source')?.detail).toContain('10 spots per hour');
+    expect(byName.get('operating_hours')?.ok).toBe(true);
+    expect(byName.get('operating_hours')?.detail).toContain('05:00');
+  });
+
+  it('still reports the channel as not ready while deployment settings are missing', async () => {
+    const body = await (await healthHandler(get('/api/health'))).json();
+    // No Hapana key and no real email provider in the test environment, so the
+    // endpoint must not claim the channel is safe to open.
+    expect(body.readyForMembers).toBe(false);
     const names = body.checks.filter((check: { ok: boolean }) => !check.ok).map((check: { name: string }) => check.name);
-    expect(names).toContain('waiver_wording');
-    expect(names).toContain('venue_maximum_source');
+    expect(names).toContain('hapana_credentials');
+    expect(names).toContain('email_provider');
   });
 });

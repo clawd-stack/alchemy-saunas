@@ -17,12 +17,12 @@ const summaryEl = document.getElementById('capacity-summary');
 const auditEl = document.getElementById('audit');
 
 const FIELDS = [
-  { key: 'venue_maximum', label: 'Venue maximum (people per hour)', type: 'number', field: 'venueMaximum',
-    hint: 'The hard ceiling. Must trace to the certificate of approval, not to a conversation. Changing it requires a documented source.' },
+  { key: 'member_channel_capacity', label: 'Spots per hour', type: 'number', field: 'memberChannelCapacity',
+    hint: 'How many spots this channel sells per session. This is the limit that governs bookings.' },
+  { key: 'venue_maximum', label: 'Venue ceiling (optional)', type: 'number', field: 'venueMaximum', optional: true,
+    hint: 'Leave blank for no venue-wide ceiling, which is the default. Set a number only if a documented occupancy limit must be held across all channels, and record its source below.' },
   { key: 'hapana_public_capacity', label: 'Hapana public capacity', type: 'number', field: 'hapanaPublicCapacity',
-    hint: 'What the public channel is configured to sell. Used to check the allocation below.' },
-  { key: 'member_channel_capacity', label: 'Member channel allocation', type: 'number', field: 'memberChannelCapacity',
-    hint: 'Ringfenced spots per session for this channel. Public plus this may never exceed the venue maximum.' },
+    hint: 'Only used to validate the allocation against a venue ceiling. Ignored when no ceiling is set.' },
   { key: 'booking_window_days', label: 'Booking window (days)', type: 'number', field: 'bookingWindowDays' },
   { key: 'cancellation_cutoff_hours', label: 'Cancellation cutoff (hours)', type: 'number', field: 'cancellationCutoffHours' },
   { key: 'max_guests_per_member', label: 'Guests per member', type: 'number', field: 'maxGuestsPerMember' },
@@ -78,19 +78,27 @@ async function load() {
 }
 
 function renderSummary(config, entries) {
-  const allocated = config.hapanaPublicCapacity + config.memberChannelCapacity;
-  const headroom = config.venueMaximum - allocated;
   const source = entries.find((entry) => entry.key === 'venue_maximum')?.sourceNote;
+  const tiles = [
+    el('div', {}, [el('strong', { text: String(config.memberChannelCapacity) }), 'spots per hour']),
+    el('div', {}, [el('strong', { text: String(config.maxGuestsPerMember) }), 'guests per member']),
+    el('div', {}, [el('strong', { text: `$${config.guestPrice}` }), 'per guest, at the door']),
+  ];
+  if (config.venueMaximum !== null) {
+    tiles.push(el('div', {}, [el('strong', { text: String(config.venueMaximum) }), 'venue ceiling']));
+  }
 
   summaryEl.innerHTML = '';
   summaryEl.append(
-    el('div', { class: 'totals' }, [
-      el('div', {}, [el('strong', { text: String(config.venueMaximum) }), 'venue maximum']),
-      el('div', {}, [el('strong', { text: String(config.hapanaPublicCapacity) }), 'public']),
-      el('div', {}, [el('strong', { text: String(config.memberChannelCapacity) }), 'member channel']),
-      el('div', {}, [el('strong', { text: String(headroom) }), 'unallocated']),
-    ]),
-    el('p', { class: 'hint', style: 'margin-top:14px', text: `Venue maximum source: ${source || 'not recorded'}` }),
+    el('div', { class: 'totals' }, tiles),
+    el('p', {
+      class: 'hint',
+      style: 'margin-top:14px',
+      text:
+        config.venueMaximum === null
+          ? 'No venue-wide ceiling is enforced. Bookings are limited by the spots per hour above.'
+          : `Venue ceiling source: ${source || 'not recorded'}`,
+    }),
   );
 }
 
@@ -105,7 +113,14 @@ function renderForm(config, entries) {
             spec.options.map((option) =>
               el('option', { value: option.value, selected: option.value === value, text: option.label }),
             ))
-        : el('input', { id: spec.key, name: spec.key, type: 'text', inputmode: 'numeric', value: String(value) });
+        : el('input', {
+            id: spec.key,
+            name: spec.key,
+            type: 'text',
+            inputmode: 'numeric',
+            placeholder: spec.optional ? 'Leave blank for none' : '',
+            value: value === null || value === undefined ? '' : String(value),
+          });
 
     form.append(
       el('div', {}, [
@@ -116,9 +131,32 @@ function renderForm(config, entries) {
     );
   }
 
+  const waiver = config.waiverText ?? { clauses: [], declaration: '', termsUrl: '', version: '' };
   form.append(
+    el('h2', { style: 'margin-bottom:4px', text: 'Guest waiver' }),
+    el('p', { class: 'hint', style: 'margin-top:0', text: 'Shown to every guest before they visit. Changes take effect immediately. Bump the version whenever the wording changes: it is stamped on every signature, so which text a guest agreed to stays provable.' }),
     el('div', {}, [
-      el('label', { for: 'sourceNote', text: 'Documented source (required when changing the venue maximum)' }),
+      el('label', { for: 'waiver_version_field', text: 'Waiver version' }),
+      el('input', { id: 'waiver_version_field', type: 'text', value: waiver.version ?? '' }),
+    ]),
+    el('div', {}, [
+      el('label', { for: 'waiver_terms_url', text: 'Terms of Use link (the binding document)' }),
+      el('input', { id: 'waiver_terms_url', type: 'text', value: waiver.termsUrl ?? '' }),
+    ]),
+    el('div', {}, [
+      el('label', { for: 'waiver_clauses', text: 'Clauses, one per line as "Heading | text"' }),
+      el('textarea', {
+        id: 'waiver_clauses',
+        rows: '10',
+        style: 'width:100%;padding:11px 12px;font:inherit;border:1px solid var(--line);border-radius:8px',
+      }, [(waiver.clauses ?? []).map((clause) => `${clause.heading} | ${clause.body}`).join('\n')]),
+    ]),
+    el('div', {}, [
+      el('label', { for: 'waiver_declaration', text: 'Declaration the guest agrees to' }),
+      el('input', { id: 'waiver_declaration', type: 'text', value: waiver.declaration ?? '' }),
+    ]),
+    el('div', {}, [
+      el('label', { for: 'sourceNote', text: 'Documented source (required when setting a venue ceiling)' }),
       el('input', { id: 'sourceNote', type: 'text', placeholder: 'e.g. Certificate of approval TOEF-2026-0142, Town of East Fremantle' }),
     ]),
     el('div', { class: 'row' }, [
@@ -132,12 +170,46 @@ form.addEventListener('submit', async (event) => {
   event.preventDefault();
   const updates = {};
   for (const spec of FIELDS) {
-    const raw = document.getElementById(spec.key).value;
-    const value = spec.type === 'select' ? raw : Number(raw);
-    if (spec.type !== 'select' && Number.isNaN(value)) {
-      return notice(messages, 'warn', `${spec.label} must be a number.`);
+    const raw = document.getElementById(spec.key).value.trim();
+    let value;
+    if (spec.type === 'select') {
+      value = raw;
+    } else if (spec.optional && raw === '') {
+      value = null;
+    } else {
+      value = Number(raw);
+      if (raw === '' || Number.isNaN(value)) {
+        return notice(messages, 'warn', `${spec.label} must be a number.`);
+      }
     }
     if (value !== current[spec.field]) updates[spec.key] = value;
+  }
+
+  // Waiver wording, edited as one clause per line: "Heading | body".
+  const waiverBox = document.getElementById('waiver_clauses');
+  if (waiverBox) {
+    const clauses = waiverBox.value
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const split = line.indexOf('|');
+        return split === -1
+          ? { heading: '', body: line }
+          : { heading: line.slice(0, split).trim(), body: line.slice(split + 1).trim() };
+      });
+    const next = {
+      ...current.waiverText,
+      clauses,
+      termsUrl: document.getElementById('waiver_terms_url').value.trim(),
+      declaration: document.getElementById('waiver_declaration').value.trim(),
+      version: document.getElementById('waiver_version_field').value.trim(),
+    };
+    if (JSON.stringify(next) !== JSON.stringify(current.waiverText)) {
+      updates.waiver_text = next;
+      // The version is stamped on every signature, so keep the two in step.
+      if (next.version !== current.waiverVersion) updates.waiver_version = next.version;
+    }
   }
 
   if (Object.keys(updates).length === 0) {

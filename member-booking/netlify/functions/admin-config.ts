@@ -60,24 +60,26 @@ export default async (request: Request): Promise<Response> => {
 };
 
 function buildWarnings(
-  config: { venueMaximum: number; hapanaPublicCapacity: number; memberChannelCapacity: number },
+  config: { venueMaximum: number | null; hapanaPublicCapacity: number; memberChannelCapacity: number },
   entries: Array<{ key: string; sourceNote: string | null }>,
 ): string[] {
   const warnings: string[] = [];
-  const ceiling = entries.find((entry) => entry.key === 'venue_maximum');
-  if (!ceiling?.sourceNote || /provisional/i.test(ceiling.sourceNote)) {
-    warnings.push(
-      'The venue maximum has no confirmed documentary source. Record the certificate of approval reference from the Town of East Fremantle before opening the channel to members.',
-    );
+
+  if (config.venueMaximum !== null) {
+    const ceiling = entries.find((entry) => entry.key === 'venue_maximum');
+    if (!ceiling?.sourceNote || /provisional/i.test(ceiling.sourceNote)) {
+      warnings.push(
+        'A venue maximum is set but has no documented source. Record where the number comes from, or clear it if no ceiling needs to be enforced here.',
+      );
+    }
+    const headroom = config.venueMaximum - config.hapanaPublicCapacity - config.memberChannelCapacity;
+    if (headroom > 0) {
+      warnings.push(`${headroom} spots per session are allocated to neither channel.`);
+    }
   }
+
   if (IS_PLACEHOLDER) {
-    warnings.push(
-      `The guest waiver is still placeholder text (${WAIVER_VERSION}). Replace it with the wording from Alex Beagley before go-live.`,
-    );
-  }
-  const headroom = config.venueMaximum - config.hapanaPublicCapacity - config.memberChannelCapacity;
-  if (headroom > 0) {
-    warnings.push(`${headroom} spots per session are allocated to neither channel.`);
+    warnings.push(`The guest waiver is still placeholder text (${WAIVER_VERSION}) and must be replaced before go-live.`);
   }
   return warnings;
 }

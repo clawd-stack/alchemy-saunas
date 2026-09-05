@@ -132,7 +132,9 @@ describe('venue ceiling', () => {
     expect(rows.map((row) => row.action)).toEqual(['book', 'refuse']);
     expect(rows[1]?.refusalCode).toBe('SESSION_FULL');
     // The ceiling must never be shown as breached in the audit trail.
-    expect(rows.every((row) => row.venueTotalBookedAfter <= row.venueMaximumAtTime)).toBe(true);
+    expect(
+      rows.every((row) => row.venueMaximumAtTime === null || row.venueTotalBookedAfter <= row.venueMaximumAtTime),
+    ).toBe(true);
   });
 });
 

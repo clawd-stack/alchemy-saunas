@@ -182,7 +182,7 @@ create table if not exists capacity_audit (
   member_channel_capacity     integer not null,
   public_booked_at_time       integer not null,
   venue_total_booked_after    integer not null,
-  venue_maximum_at_time       integer not null,
+  venue_maximum_at_time       integer,           -- null when no venue ceiling is configured
   actor                       text,
   created_at                  timestamptz not null default now()
 );
@@ -388,23 +388,35 @@ begin
       'detail', jsonb_build_object('spots_remaining', greatest(v_capacity - v_booked, 0), 'requested', v_requested));
   end if;
 
-  -- Rule 5: hard venue ceiling across all channels. Independent of whatever
-  -- Hapana believes. If p_public_booked could not be established the caller
-  -- passes a negative sentinel and we fail closed.
-  if p_public_booked < 0 then
-    return jsonb_build_object('ok', false, 'code', 'OCCUPANCY_UNKNOWN');
-  end if;
+  -- Rule 5: optional venue-wide ceiling across all channels.
+  --
+  -- The member channel owns a fixed allocation (rule 4 above), which is the
+  -- constraint that actually governs this build. A venue-wide ceiling is only
+  -- enforced when one is configured: pass null for p_venue_maximum and this
+  -- check is skipped entirely, along with its dependency on knowing what the
+  -- public channel has sold.
+  --
+  -- When a ceiling IS configured, it is enforced strictly, and a caller that
+  -- could not establish public occupancy passes a negative sentinel so the
+  -- booking fails closed rather than being waved through.
+  if p_venue_maximum is not null then
+    if p_public_booked < 0 then
+      return jsonb_build_object('ok', false, 'code', 'OCCUPANCY_UNKNOWN');
+    end if;
 
-  v_total_after := v_booked + p_public_booked + v_requested;
-  if v_total_after > p_venue_maximum then
-    v_code := 'VENUE_CEILING';
-    insert into capacity_audit (session_id, action, refusal_code, spots_delta,
-      member_channel_booked_after, member_channel_capacity, public_booked_at_time,
-      venue_total_booked_after, venue_maximum_at_time, actor)
-    values (v_session.id, 'refuse', v_code, 0, v_booked, v_capacity, p_public_booked,
-      v_booked + p_public_booked, p_venue_maximum, p_actor);
-    return jsonb_build_object('ok', false, 'code', v_code,
-      'detail', jsonb_build_object('venue_maximum', p_venue_maximum, 'would_be', v_total_after));
+    v_total_after := v_booked + p_public_booked + v_requested;
+    if v_total_after > p_venue_maximum then
+      v_code := 'VENUE_CEILING';
+      insert into capacity_audit (session_id, action, refusal_code, spots_delta,
+        member_channel_booked_after, member_channel_capacity, public_booked_at_time,
+        venue_total_booked_after, venue_maximum_at_time, actor)
+      values (v_session.id, 'refuse', v_code, 0, v_booked, v_capacity, p_public_booked,
+        v_booked + p_public_booked, p_venue_maximum, p_actor);
+      return jsonb_build_object('ok', false, 'code', v_code,
+        'detail', jsonb_build_object('venue_maximum', p_venue_maximum, 'would_be', v_total_after));
+    end if;
+  else
+    v_total_after := v_booked + greatest(p_public_booked, 0) + v_requested;
   end if;
 
   v_amount := (v_guest_count * p_guest_price)::numeric(10,2);

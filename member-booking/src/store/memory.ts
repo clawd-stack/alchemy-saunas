@@ -266,21 +266,25 @@ export function createMemoryStore(): MemoryStore {
             };
           }
 
-          if (input.publicBooked < 0) return { ok: false as const, code: 'OCCUPANCY_UNKNOWN' };
-
-          const totalAfter = booked + input.publicBooked + requested;
-          if (totalAfter > input.venueMaximum) {
-            recordAudit({
-              sessionId: session.id, bookingId: null, action: 'refuse', refusalCode: 'VENUE_CEILING',
-              spotsDelta: 0, memberChannelBookedAfter: booked, memberChannelCapacity: capacity,
-              publicBookedAtTime: input.publicBooked, venueTotalBookedAfter: booked + input.publicBooked,
-              venueMaximumAtTime: input.venueMaximum,
-            });
-            return {
-              ok: false as const,
-              code: 'VENUE_CEILING',
-              detail: { venueMaximum: input.venueMaximum, wouldBe: totalAfter },
-            };
+          // The venue-wide ceiling is optional. When none is configured the
+          // channel's own allocation, checked above, is the only limit, and we
+          // do not need to know what the public channel has sold.
+          const totalAfter = booked + Math.max(input.publicBooked, 0) + requested;
+          if (input.venueMaximum !== null) {
+            if (input.publicBooked < 0) return { ok: false as const, code: 'OCCUPANCY_UNKNOWN' };
+            if (totalAfter > input.venueMaximum) {
+              recordAudit({
+                sessionId: session.id, bookingId: null, action: 'refuse', refusalCode: 'VENUE_CEILING',
+                spotsDelta: 0, memberChannelBookedAfter: booked, memberChannelCapacity: capacity,
+                publicBookedAtTime: input.publicBooked, venueTotalBookedAfter: booked + input.publicBooked,
+                venueMaximumAtTime: input.venueMaximum,
+              });
+              return {
+                ok: false as const,
+                code: 'VENUE_CEILING',
+                detail: { venueMaximum: input.venueMaximum, wouldBe: totalAfter },
+              };
+            }
           }
 
           const bookingId = randomUUID();
