@@ -65,10 +65,9 @@ export const CONFIG_DEFAULTS: AppConfig = {
     sun: ['05:00', '21:00'],
   },
   bookingBackend: 'local',
-  // A guess at the venue's address, and editable in Settings precisely
-  // because it is one. Wrong here is worse than absent: a support link that
-  // bounces is a member who thinks they were ignored.
-  supportEmail: 'hello@alchemysaunas.com.au',
+  // The venue's address, confirmed. Still editable in Settings: it is the
+  // kind of thing that changes without anybody thinking to open a PR.
+  supportEmail: 'support@alchemysaunas.com.au',
 };
 
 const KEY_MAP: Record<string, keyof AppConfig> = {
