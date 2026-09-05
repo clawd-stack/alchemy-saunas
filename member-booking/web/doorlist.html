@@ -44,6 +44,18 @@
         <select id="session"></select>
       </div>
 
+      <!-- Works with no email provider configured: staff hand the link over
+           in person instead of it being emailed. -->
+      <details class="card">
+        <summary style="cursor:pointer;font-weight:600">Sign a member in</summary>
+        <p class="muted" style="margin:10px 0">For a member who cannot get their sign-in email. Their membership is still checked before a link is issued.</p>
+        <div class="row" style="gap:8px">
+          <input id="member-email" type="email" placeholder="member@example.com" style="flex:1;min-width:200px">
+          <button class="btn-primary btn-small" id="issue-link" type="button">Get link</button>
+        </div>
+        <div id="issued-link"></div>
+      </details>
+
       <div id="stale"></div>
       <div id="totals" class="card hidden"></div>
       <div id="list"></div>

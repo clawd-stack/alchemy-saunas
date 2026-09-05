@@ -19,6 +19,7 @@ insert into app_config (key, value, source_note) values
   ('booking_window_days',      '14'::jsonb,    null),
   ('cancellation_cutoff_hours','3'::jsonb,     null),
   ('max_guests_per_member',    '3'::jsonb,     null),
+  ('member_session_days',      '30'::jsonb,    'How long a member stays signed in. Deliberately long: without an email provider a member cannot request a new link themselves, so a link handed over at the venue has to keep working.'),
   ('guest_price',              '35'::jsonb,    'Display only. Collected by EFTPOS at the door; no payment processing in software.'),
   ('session_length_minutes',   '60'::jsonb,    null),
   ('waiver_version',           '"ALCHEMY-TOU-2026-09"'::jsonb, 'Alchemy conditions of use, with the website Terms of Use as the binding document.'),

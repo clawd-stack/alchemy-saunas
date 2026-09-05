@@ -44,10 +44,13 @@ export default async (request: Request): Promise<Response> => {
     const member = await verifyMemberById(context, consumed.memberId);
     if (!member) return redirect('/booking.html?signin=inactive');
 
+    // Sessions last as long as the configured window, which is deliberately
+    // generous: without email a member cannot request a new link themselves.
+    const ttlHours = context.config.memberSessionDays * 24;
     const cookie = setCookie(
       MEMBER_COOKIE,
-      issueMemberSession({ memberId: member.memberId, email: member.email, name: member.name }),
-      MEMBER_SESSION_TTL_HOURS * 3600,
+      issueMemberSession({ memberId: member.memberId, email: member.email, name: member.name }, ttlHours),
+      ttlHours * 3600,
     );
     return redirect('/booking.html?signin=ok', cookie);
   } catch (error) {

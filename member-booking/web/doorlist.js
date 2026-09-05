@@ -160,7 +160,7 @@ function renderRows(doorList) {
       body.append(
         el('tr', { class: 'guest-row' }, [
           el('td', { text: guest.name }),
-          el('td', {}, [waiverPill(guest)]),
+          el('td', {}, [waiverPill(guest, row)]),
           el('td', { text: '' }),
           el('td', {}, [
             el('button', {
@@ -192,11 +192,54 @@ function renderRows(doorList) {
   );
 }
 
-function waiverPill(guest) {
+function waiverPill(guest, row) {
   if (guest.waiverStatus === 'signed') return el('span', { class: 'pill pill--good', text: 'Waiver signed' });
-  // Unsigned never blocks entry; it is resolved at the door.
-  return el('span', { class: 'pill pill--warn', text: 'Waiver at door' });
+  // Unsigned never blocks entry, so this is an action rather than a warning:
+  // hand the tablet over and the guest signs on the spot. This is also the
+  // path that works when no email provider is configured and the waiver was
+  // never delivered.
+  return el('button', {
+    class: 'btn-quiet btn-small',
+    type: 'button',
+    text: 'Sign waiver',
+    onclick: () => openWaiver(row.bookingId, guest),
+  });
 }
+
+/**
+ * Opens a guest's waiver on this device so they can sign at the door. A fresh
+ * token is minted each time, which invalidates any older link for that guest:
+ * the waiver stays one document with one signature history.
+ */
+async function openWaiver(bookingId, guest) {
+  try {
+    const result = await api.post('/api/staff/links', { action: 'guest-waiver', bookingId, guestId: guest.guestId });
+    window.open(result.url, '_blank', 'noopener');
+  } catch (error) {
+    notice(messages, 'bad', error.message);
+  }
+}
+
+document.getElementById('issue-link').addEventListener('click', async () => {
+  const target = document.getElementById('issued-link');
+  const email = document.getElementById('member-email').value.trim();
+  target.innerHTML = '';
+  if (!email) return notice(target, 'warn', 'Enter the email on their membership.');
+
+  try {
+    const result = await api.post('/api/staff/links', { action: 'member-signin', email });
+    target.innerHTML = '';
+    target.append(
+      el('div', { class: 'notice notice--good' }, [result.message]),
+      el('input', { type: 'text', value: result.url, readonly: true, id: 'issued-url', onclick: (event) => event.target.select() }),
+      el('p', { class: 'hint', text: 'Tap the box to select, then copy it, or let them open it on this screen.' }),
+    );
+  } catch (error) {
+    // Deliberately the same generic message as the member-facing path: staff
+    // must not be able to use this to find out who holds a membership.
+    notice(target, 'bad', error.message);
+  }
+});
 
 async function setPayment(row, paymentStatus) {
   try {
