@@ -95,7 +95,6 @@ function render(data) {
         el('span', { text: text.declaration }),
       ]),
       el('button', { class: 'btn-primary', id: 'sign', type: 'button', text: 'Sign waiver' }),
-      el('p', { class: 'hint', text: 'Prefer to sign in person? The team can sort it out at the door.' }),
     ]),
   );
 

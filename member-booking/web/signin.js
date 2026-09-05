@@ -77,13 +77,13 @@ export function showPasswordChange({ messages, onDone, forced = false, host }) {
 
   const form = el('form', { class: 'stack' }, [
     el('h2', { style: 'margin:0', text: forced ? 'Choose your own password' : 'Change password' }),
-    el('p', {
+    // Said only when forced: somebody else has seen the issued password, and
+    // that is the whole reason this screen is in the way.
+    forced ? el('p', {
       class: 'muted',
       style: 'margin:0',
-      text: forced
-        ? 'You are signed in. The password you used was issued to you, so somebody else has seen it: choose one only you know.'
-        : 'You will need your current password.',
-    }),
+      text: 'The password you used was issued to you. Choose one only you know.',
+    }) : null,
     el('div', {}, [el('label', { text: 'Current password' }), current]),
     el('div', {}, [el('label', { text: 'New password (at least 12 characters)' }), next]),
     el('div', {}, [el('label', { text: 'New password again' }), confirm]),
