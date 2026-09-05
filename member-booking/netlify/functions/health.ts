@@ -52,6 +52,18 @@ export default async (request: Request): Promise<Response> => {
         : `${emailProvider} selected but its credentials are missing`,
   });
 
+  // A break-glass credential is meant to be temporary. Left in place it is a
+  // standing second way into the admin screen, so the check fails while it
+  // exists rather than only mentioning it.
+  const bootstrapToken = process.env.ADMIN_BOOTSTRAP_TOKEN ?? '';
+  checks.push({
+    name: 'bootstrap_token_removed',
+    ok: bootstrapToken === '',
+    detail: bootstrapToken
+      ? 'ADMIN_BOOTSTRAP_TOKEN is still set: break-glass admin sign-in is live. Delete it once email works.'
+      : 'no break-glass credential set',
+  });
+
   if (context) {
     const version = context.config.waiverVersion;
     const isPlaceholder = IS_PLACEHOLDER || version.startsWith('PLACEHOLDER');

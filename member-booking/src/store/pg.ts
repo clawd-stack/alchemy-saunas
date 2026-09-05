@@ -123,6 +123,17 @@ function mapMember(row: any): MemberRecord {
   };
 }
 
+function mapStaff(row: any): StaffRecord {
+  return {
+    staffId: row.staff_id,
+    email: row.email,
+    displayName: row.display_name,
+    role: row.role,
+    venueIds: row.venue_ids ?? [],
+    active: row.active,
+  };
+}
+
 function mapAudit(row: any): AuditRow {
   return {
     eventId: row.event_id,
@@ -531,15 +542,39 @@ export function createPgStore(connectionString?: string): Store {
         const [row]: any[] = await sql()`
           select * from staff_users where lower(email) = ${email.toLowerCase()} and active
         `;
-        return row
-          ? { staffId: row.staff_id, email: row.email, displayName: row.display_name, role: row.role, venueIds: row.venue_ids ?? [], active: row.active }
-          : null;
+        return row ? mapStaff(row) : null;
       },
       async getStaff(staffId: string): Promise<StaffRecord | null> {
         const [row]: any[] = await sql()`select * from staff_users where staff_id = ${staffId}::uuid and active`;
-        return row
-          ? { staffId: row.staff_id, email: row.email, displayName: row.display_name, role: row.role, venueIds: row.venue_ids ?? [], active: row.active }
-          : null;
+        return row ? mapStaff(row) : null;
+      },
+      async listStaff(): Promise<StaffRecord[]> {
+        const rows: any[] = await sql()`
+          select * from staff_users order by active desc, lower(email)
+        `;
+        return rows.map(mapStaff);
+      },
+      async upsertStaff({ email, displayName, role, venueIds }): Promise<StaffRecord> {
+        // Conflict on the address, not the id: re-adding somebody who was
+        // deactivated brings their original account back rather than creating
+        // a second one, so their history stays attached to them.
+        const [row]: any[] = await sql()`
+          insert into staff_users (email, display_name, role, venue_ids, active)
+          values (${email}, ${displayName}, ${role}, ${venueIds}, true)
+          on conflict (email) do update
+            set display_name = excluded.display_name,
+                role = excluded.role,
+                venue_ids = excluded.venue_ids,
+                active = true
+          returning *
+        `;
+        return mapStaff(row);
+      },
+      async setStaffActive(staffId: string, active: boolean): Promise<StaffRecord | null> {
+        const [row]: any[] = await sql()`
+          update staff_users set active = ${active} where staff_id = ${staffId}::uuid returning *
+        `;
+        return row ? mapStaff(row) : null;
       },
     },
 

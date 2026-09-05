@@ -7,12 +7,12 @@ in a chat transcript.
 
 | | Detail |
 |---|---|
-| **Code** | Merged to `main` (PR #1). CI green: 112 tests, 19 against a real Postgres. |
+| **Code** | Merged to `main`. CI green: 149 tests, 22 of them against a real Postgres. |
 | **Netlify site** | `alchemy-booking`, team Ragan. Site id `cdfc3250-6203-4e41-bb89-79c171e270f9`. URL will be `https://alchemy-booking.netlify.app`. |
 | **Database** | Nothing to create. `@netlify/database` is a dependency, so Netlify DB provisions Postgres on the first build and applies `netlify/database/migrations/` in order before publishing. A failed migration blocks the publish. |
 | **Environment variables** | `SESSION_SECRET` (generated), `PUBLIC_BASE_URL`, `ALLOWED_ORIGINS`, `DEFAULT_VENUE_ID`, `EMAIL_PROVIDER=console` are set on the site and verified by reading them back. They are stored as ordinary variables, not secret-flagged: variable scoping and the secret flag are paid-plan features on Netlify, and requesting them makes the write silently do nothing. Mark `SESSION_SECRET` secret in the UI if the plan is ever upgraded. |
 | **Build settings** | In `netlify.toml` at the **repository root**: base `member-booking`, build `npm run typecheck`, publish `web`, functions `netlify/functions`. Leave every UI build field empty so this file stays authoritative. |
-| **Admin access** | `clawd@ragan.com.au` is seeded as an admin, so there is a working way into the config and door list screens on first deploy. |
+| **Admin access** | `clawd@ragan.com.au` is seeded as an admin. Reached without email via `ADMIN_BOOTSTRAP_TOKEN` (section 2), after which staff accounts are managed from the admin screen rather than by migration. |
 
 ## Migrations are immutable once applied
 
@@ -56,7 +56,57 @@ On app.netlify.com, phone browser is fine:
 
 The first build provisions the database and applies all three migrations.
 
-### 2. Email provider (3 minutes, phone is fine)
+### 2. Getting into the admin screen the first time
+
+Every route into the admin screen is an emailed link, and the thing that needs
+configuring is email. That is a deadlock, and the staff-issued links endpoint
+does not break it, because it is itself staff-authenticated. Somebody has to
+get in first.
+
+`ADMIN_BOOTSTRAP_TOKEN` is that first way in, and nothing else. Open:
+
+```
+https://alchemy-booking.netlify.app/admin.html?bootstrap=<the token>
+```
+
+The page exchanges it, signs you in for 12 hours, and strips the token from
+the address bar so it is not left in browser history or a screenshot.
+
+What it can and cannot do:
+
+- It exists only while the environment variable is set. Unset, which is the
+  normal state of a deployment, the endpoint refuses without reading the
+  request.
+- It signs in as an **existing** admin account. It cannot create one, promote
+  one, or reach a deactivated account or a door account.
+- The production database has two active admins (`clawd@ragan.com.au` and
+  `james@alchemysaunas.com.au`), so `ADMIN_BOOTSTRAP_EMAIL` names which one.
+  Without it the endpoint refuses rather than picking.
+- Five attempts per IP per fifteen minutes, compared in constant time. Every
+  attempt is logged.
+
+**Delete `ADMIN_BOOTSTRAP_TOKEN` once the email check passes.** `/api/health`
+fails the `bootstrap_token_removed` check while it is still set, so it will not
+be forgotten quietly.
+
+### 3. Staff accounts
+
+The admin screen now manages them, so changing who has access no longer needs a
+migration and a deploy. The seeded addresses (`james@alchemysaunas.com.au`,
+`door.eastfremantle@alchemysaunas.com.au`) were placeholders; replace them with
+real ones and deactivate what is left.
+
+Deactivating removes sign-in immediately but does not kill a session already
+open: staff sessions are signed cookies with a 12-hour life and no server-side
+lookup, so an open one runs out within 12 hours. That is the right trade for a
+door list, and worth knowing before relying on it to cut someone off mid-shift.
+
+Roles: **door** sees the door list, **manager** adds reconciliation, **admin**
+adds configuration and this screen. Only an admin can edit staff, because a
+manager who could would be able to make themselves an admin. An admin cannot
+deactivate or demote themselves, and the last active admin cannot be removed.
+
+### 4. Email provider (3 minutes, phone is fine)
 
 **The one item that genuinely needs a credential I cannot create.** Until it
 is set, `EMAIL_PROVIDER=console` writes sign-in links, waivers and
@@ -111,7 +161,7 @@ Sign up, create an API key, then set `EMAIL_PROVIDER` to `resend` or
 All three are already implemented, so whichever you choose is configuration
 only, with no code change.
 
-### 3. Hapana credentials
+### 5. Hapana credentials
 
 Set `HAPANA_API_KEY` in the Netlify environment. **Rotate the key first** if it
 has ever been sent through chat or email, and name the API client
@@ -129,13 +179,13 @@ HAPANA_API_KEY='…' node member-booking/scripts/probe-hapana.mjs
 It answers whether Pattern A is available. Not urgent: Pattern B ships as the
 default and needs read access only.
 
-### 4. Webflow page
+### 6. Webflow page
 
 Create the private page and embed `web/booking.html`, or iframe it from
 `https://alchemy-booking.netlify.app/booking.html`. `netlify.toml`
 already allows framing from the Alchemy domains and blocks everyone else.
 
-### 5. Two decisions, not technical
+### 7. Two decisions, not technical
 
 - **Who reconciles the daily EFTPOS CSV** against the terminal settlement. With
   no payment integration this is the only control against guest revenue

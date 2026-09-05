@@ -264,6 +264,17 @@ export interface Store {
     throttle(bucketKey: string, limit: number, windowMs: number): Promise<boolean>;
     getStaffByEmail(email: string): Promise<StaffRecord | null>;
     getStaff(staffId: string): Promise<StaffRecord | null>;
+    /** Every staff account, active and deactivated, for the admin screen. */
+    listStaff(): Promise<StaffRecord[]>;
+    /** Creates by email, or updates the name, role and venues of an existing one. */
+    upsertStaff(input: {
+      email: string;
+      displayName: string;
+      role: 'door' | 'manager' | 'admin';
+      venueIds: string[];
+    }): Promise<StaffRecord>;
+    /** Deactivates rather than deletes, so audit trails keep resolving. */
+    setStaffActive(staffId: string, active: boolean): Promise<StaffRecord | null>;
   };
   audit: {
     listForSession(sessionId: string, limit?: number): Promise<AuditRow[]>;
