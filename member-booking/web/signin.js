@@ -43,8 +43,18 @@ export function mountSignIn({ formId, buttonId, emailId, passwordId, messages, o
       // state a person cannot debug for themselves.
       await onSignedIn(result);
 
+      // Said, not shown. Opening the change-password form over a sign-in that
+      // has already succeeded is what made a failure inside it read as a
+      // failed sign-in: an error appeared, the page looked stuck, and
+      // reloading revealed you had been signed in the whole time. The
+      // reminder points at the Change password control that is already on the
+      // page, and nothing about it is in the way.
       if (result.mustChangePassword) {
-        showPasswordChange({ messages, onDone: onSignedIn, forced: true });
+        notice(
+          messages,
+          'info',
+          'You are signed in. The password you used was issued to you: change it from Change password when you have a moment.',
+        );
       }
     } catch (error) {
       notice(messages, 'bad', error.message);
@@ -58,14 +68,17 @@ export function mountSignIn({ formId, buttonId, emailId, passwordId, messages, o
 /**
  * The change-password form.
  *
- * Prompted after signing in with a manager-issued password, and available on
- * demand from the account row. Prompted, not enforced: must-change was only
- * ever a UI gate, since the session cookie already works against every
- * endpoint, and dressing it up as a hard gate bought nothing while making a
- * successful sign-in look like a failed one. It can be dismissed, and it comes
- * back on the next sign-in until the password is actually changed.
+ * Opened from the Change password control on the account page and the admin
+ * hub, and from nowhere else.
+ *
+ * It used to open itself after signing in with an issued password. That was a
+ * UI gate over nothing, since the session cookie already worked against every
+ * endpoint, and it cost more than it bought: an error inside the form read as
+ * a failed sign-in, because the form was the only thing on screen that had
+ * just changed. Reloading showed you had been signed in all along. Sign-in now
+ * says so in a line of text instead, and this opens when somebody asks for it.
  */
-export function showPasswordChange({ messages, onDone, forced = false, host }) {
+export function showPasswordChange({ messages, onDone, host }) {
   const target = host ?? document.getElementById('password-change') ?? createHost();
   target.classList.remove('hidden');
   target.innerHTML = '';
@@ -76,14 +89,7 @@ export function showPasswordChange({ messages, onDone, forced = false, host }) {
   const result = el('div');
 
   const form = el('form', { class: 'stack' }, [
-    el('h2', { style: 'margin:0', text: forced ? 'Choose your own password' : 'Change password' }),
-    // Said only when forced: somebody else has seen the issued password, and
-    // that is the whole reason this screen is in the way.
-    forced ? el('p', {
-      class: 'muted',
-      style: 'margin:0',
-      text: 'The password you used was issued to you. Choose one only you know.',
-    }) : null,
+    el('h2', { style: 'margin:0', text: 'Change password' }),
     el('div', {}, [el('label', { text: 'Current password' }), current]),
     el('div', {}, [el('label', { text: 'New password (at least 12 characters)' }), next]),
     el('div', {}, [el('label', { text: 'New password again' }), confirm]),
@@ -94,7 +100,7 @@ export function showPasswordChange({ messages, onDone, forced = false, host }) {
   const cancel = el('button', {
     class: 'btn-quiet btn-small',
     type: 'button',
-    text: forced ? 'Not now' : 'Cancel',
+    text: 'Cancel',
   });
   cancel.addEventListener('click', () => target.classList.add('hidden'));
   form.append(cancel);
