@@ -29,6 +29,16 @@
 # Scheduled functions declare their own cadence via `export const config`
 # in netlify/functions/cron-*.ts, so no plugin is needed here.
 
+# The site root has no page of its own: the published folder holds the four
+# app pages and nothing else, so "/" was a 404. Send it to the member booking
+# page, which is the entry point members are given. Nothing is exposed by
+# this: every action on that page is authenticated server-side, and the page
+# itself carries noindex.
+[[redirects]]
+  from = "/"
+  to = "/booking.html"
+  status = 302
+
 [[headers]]
   for = "/*"
   [headers.values]

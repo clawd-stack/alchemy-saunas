@@ -111,6 +111,9 @@ provider and Hapana credentials are set.
 
 ## Pages, once deployed
 
+The site root (`/`) redirects to the booking page; there is no separate
+landing page.
+
 | Page | Who |
 |---|---|
 | `/booking.html` | Members. This is what goes in Webflow. |
