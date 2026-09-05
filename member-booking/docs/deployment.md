@@ -11,8 +11,20 @@ in a chat transcript.
 | **Netlify site** | `alchemy-member-booking`, team Ragan. Site id `cdfc3250-6203-4e41-bb89-79c171e270f9`. URL will be `https://alchemy-member-booking.netlify.app`. |
 | **Database** | Nothing to create. `@netlify/database` is a dependency, so Netlify DB provisions Postgres on the first build and applies `netlify/database/migrations/` in order before publishing. A failed migration blocks the publish. |
 | **Environment variables** | `SESSION_SECRET` (generated), `PUBLIC_BASE_URL`, `ALLOWED_ORIGINS`, `DEFAULT_VENUE_ID`, `EMAIL_PROVIDER=console` are set on the site and verified by reading them back. They are stored as ordinary variables, not secret-flagged: variable scoping and the secret flag are paid-plan features on Netlify, and requesting them makes the write silently do nothing. Mark `SESSION_SECRET` secret in the UI if the plan is ever upgraded. |
-| **Build settings** | Already in `netlify.toml`: base `member-booking`, build `npm run typecheck`, publish `web`, functions `netlify/functions`. Nothing to type in the UI. |
+| **Build settings** | In `netlify.toml` at the **repository root**: base `member-booking`, build `npm run typecheck`, publish `web`, functions `netlify/functions`. Leave every UI build field empty so this file stays authoritative. |
 | **Admin access** | `clawd@ragan.com.au` is seeded as an admin, so there is a working way into the config and door list screens on first deploy. |
+
+## A trap worth knowing about
+
+The first deploy reported "ready" while having done nothing useful: no build
+ran, no functions were bundled, no database was provisioned, and the repository
+root was published as a folder of static files. The cause was `netlify.toml`
+sitting in `member-booking/` rather than at the repository root, which is the
+only place Netlify reads it from.
+
+If a deploy ever finishes suspiciously fast, check the deploy summary for "No
+functions deployed" and "No header rules processed". Both mean the
+configuration was not applied, whatever the deploy status says.
 
 ## Remaining, and who has to do it
 
@@ -29,7 +41,8 @@ On app.netlify.com, phone browser is fine:
 2. **Project configuration → Build & deploy → Link repository** (on a new site
    this may appear as "Import an existing project" or "Link to Git").
 3. Choose GitHub, then `clawd-stack/alchemy-saunas`, branch `main`.
-4. Leave every build setting alone. `netlify.toml` already declares them.
+4. Leave every build setting empty, including Base directory and Package
+   directory. `netlify.toml` at the repository root declares all of them.
 5. Deploy.
 
 The first build provisions the database and applies all three migrations.

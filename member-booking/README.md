@@ -133,9 +133,11 @@ printed to the function log: that is how you sign in locally.
    deploy is published, in order, with a failed migration blocking publish.
    Deploy previews get their own isolated database branch, so a preview can
    never write to production data.
-2. **Netlify.** Point a site at this directory. `netlify.toml` sets the build,
-   the functions directory and the security headers. The build command runs the
-   typecheck and the test suite, so a deploy cannot ship a failing suite.
+2. **Netlify.** Link the site to this repository. `netlify.toml` lives at the
+   **repository root**, not in this directory, because that is the only place
+   Netlify reads it from; it sets the base directory to `member-booking` along
+   with the build command, publish and functions directories, and the security
+   headers. Leave the UI build settings empty so the file stays authoritative.
 3. **Environment.** Set the variables from `.env.example` in the Netlify UI.
    Hapana credentials and the session secret live there and nowhere else.
 4. **Staff accounts.** Edit the seeded rows in `staff_users` to the real
