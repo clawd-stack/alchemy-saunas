@@ -29,6 +29,7 @@ export default async (request: Request): Promise<Response> => {
         bookingWindowDays: context.config.bookingWindowDays,
         cancellationCutoffHours: context.config.cancellationCutoffHours,
       },
+      supportEmail: context.config.supportEmail,
       signedIn: Boolean(member),
       memberName: member?.name ?? null,
       sessions: sessions.map(({ publicBooked: _ignored, ...view }) => view),

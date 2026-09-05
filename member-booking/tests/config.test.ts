@@ -143,3 +143,20 @@ describe('email provider selection', () => {
     expect(() => createProvider()).toThrow(/Unsupported EMAIL_PROVIDER/);
   });
 });
+
+describe('support email', () => {
+  it('accepts an address, and blank to hide the link', () => {
+    expect(validate({ ...CONFIG_DEFAULTS, supportEmail: 'hello@alchemysaunas.com.au' })).toHaveLength(0);
+    // Blank is not a mistake: it is how the link is turned off.
+    expect(validate({ ...CONFIG_DEFAULTS, supportEmail: '' })).toHaveLength(0);
+  });
+
+  it('refuses something that is not an address', () => {
+    // A link that bounces is worse than no link, because the member thinks
+    // they were ignored rather than unheard.
+    for (const bad of ['the front desk', 'hello@', '@example.com', 'hello@example']) {
+      const issues = validate({ ...CONFIG_DEFAULTS, supportEmail: bad });
+      expect(issues.map((i) => i.key), bad).toContain('support_email');
+    }
+  });
+});

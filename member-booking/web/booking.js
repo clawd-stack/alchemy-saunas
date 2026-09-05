@@ -73,6 +73,21 @@ async function loadSessions() {
     state.sessions = data.sessions;
     state.signedIn = data.signedIn;
 
+    // Somewhere to write when the screen cannot help, under the form rather
+    // than inside it: a member who cannot get in is the one who most needs it
+    // and the one the form has nothing left to offer.
+    const support = document.getElementById('support');
+    if (support) {
+      support.innerHTML = '';
+      if (data.supportEmail && !data.signedIn) {
+        support.append(
+          'Trouble signing in? ',
+          el('a', { href: `mailto:${data.supportEmail}`, text: 'Email us' }),
+        );
+      }
+      support.hidden = !data.supportEmail || data.signedIn;
+    }
+
     // Exactly one of the two states goes up. Before this, the form was
     // markup's default and flashed at every signed-in member on every load.
     signinCard.classList.toggle('hidden', data.signedIn);

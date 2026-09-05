@@ -36,6 +36,13 @@ const GROUPS = [
     ],
   },
   {
+    title: 'Contact',
+    note: 'Shown as "Email us" under the sign-in form and in the member menu. Blank hides it.',
+    fields: [
+      { key: 'support_email', label: 'Support email', field: 'supportEmail', type: 'text' },
+    ],
+  },
+  {
     title: 'Inventory',
     fields: [
       {
@@ -90,8 +97,10 @@ function control(spec, config) {
     ? el('select', { id: spec.key }, spec.options.map((o) =>
         el('option', { value: o.value, selected: o.value === value, text: o.label })))
     : el('input', {
-        id: spec.key, type: 'text', inputmode: 'numeric',
-        placeholder: spec.optional ? 'None' : '',
+        id: spec.key, type: 'text',
+        // Numeric everywhere but the one field that is not a number.
+        inputmode: spec.type === 'text' ? 'email' : 'numeric',
+        placeholder: spec.type === 'text' ? 'hello@example.com' : spec.optional ? 'None' : '',
         value: value === null || value === undefined ? '' : String(value),
       });
   return field(spec.label, input);
@@ -104,7 +113,7 @@ async function submit(event, config, { messages, onSaved }) {
   for (const spec of FIELDS) {
     const raw = document.getElementById(spec.key).value.trim();
     let value;
-    if (spec.type === 'select') {
+    if (spec.type === 'select' || spec.type === 'text') {
       value = raw;
     } else if (spec.optional && raw === '') {
       value = null;

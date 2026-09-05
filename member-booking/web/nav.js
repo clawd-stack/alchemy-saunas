@@ -57,8 +57,9 @@ function mount({ home, links, admin = false }) {
   }, [el('span', { class: 'nav-toggle__box' }, [el('i'), el('i'), el('i')])]);
 
   const list = el('ul', { class: 'nav-links' });
+  const support = el('a', { class: 'nav-support', id: 'nav-support', hidden: 'hidden' });
   const who = el('span', { class: 'nav-who' });
-  const nav = el('nav', { class: 'site-nav', id: 'site-nav', 'aria-label': 'Main' }, [list, who]);
+  const nav = el('nav', { class: 'site-nav', id: 'site-nav', 'aria-label': 'Main' }, [list, support, who]);
   nav.hidden = true;
 
   const wordmark = el('a', { class: 'wordmark', href: home }, [
@@ -101,7 +102,7 @@ function mount({ home, links, admin = false }) {
     if (event.target.closest('a')) setOpen(false);
   });
 
-  const draw = (session) => render({ list, who, toggle, links, admin, session });
+  const draw = (session) => render({ list, support, who, toggle, links, admin, session });
   draw(null);
   // Failing to load the session is not worth a message: the links are a
   // convenience, and every page already handles being signed out on its own.
@@ -110,7 +111,7 @@ function mount({ home, links, admin = false }) {
   return { setOpen, refresh: () => api.get('/api/auth/session').then(draw).catch(() => {}) };
 }
 
-function render({ list, who, toggle, links, admin, session }) {
+function render({ list, support, who, toggle, links, admin, session }) {
   const here = window.location.pathname;
   const staff = session?.staff ?? null;
   const member = session?.member ?? null;
@@ -129,6 +130,13 @@ function render({ list, who, toggle, links, admin, session }) {
     list.append(anchor);
   }
 
+  // Somewhere to write when the screen cannot help. Members only: staff have
+  // the venue's phone number and are usually standing in it.
+  const email = admin ? '' : (session?.supportEmail ?? '');
+  support.textContent = email ? 'Email us' : '';
+  support.href = email ? `mailto:${email}` : '';
+  support.hidden = !email;
+
   who.textContent = admin
     ? (staff ? `${staff.name}, ${staff.role}` : '')
     : (member ? member.name : '');
@@ -136,5 +144,5 @@ function render({ list, who, toggle, links, admin, session }) {
 
   // Nothing to open is worse than an empty panel: on the admin sign-in page
   // the button would toggle a blank sheet over the form.
-  toggle.hidden = visible.length === 0 && !who.textContent;
+  toggle.hidden = visible.length === 0 && !who.textContent && !email;
 }
