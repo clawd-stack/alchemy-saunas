@@ -3,6 +3,7 @@ import { buildContext } from '../../src/domain/context.ts';
 import { requireStaff } from '../../src/lib/auth.ts';
 import { generatePassword, hashPassword, readPassword, validatePassword } from '../../src/lib/password.ts';
 import { BookingError } from '../../src/lib/errors.ts';
+import { configKeyFor } from '../../src/lib/config.ts';
 import { errorResponse, json, normaliseEmail, preflight, readJson, requireMethod, requireString } from '../../src/lib/http.ts';
 import type { MemberRecord, MembershipStatus, StaffRecord } from '../../src/store/types.ts';
 
@@ -12,6 +13,7 @@ import type { MemberRecord, MembershipStatus, StaffRecord } from '../../src/stor
  *   GET    /api/admin/people                              one list
  *   POST   /api/admin/people { action: 'add', ... }       add, with a password
  *   POST   /api/admin/people { action: 'import', ... }    bulk, from an export
+ *   PATCH  /api/admin/people { package, allowed }       open or close a package
  *   POST   /api/admin/people { action: 'reset', email }   new password
  *   PATCH  /api/admin/people { email, role|signIn }       change role, suspend
  *   DELETE /api/admin/people { email }                    remove
@@ -62,12 +64,27 @@ export default async (request: Request): Promise<Response> => {
 
     if (request.method === 'GET') {
       const { staff, members, credentials } = await load();
+      // Every package anybody holds, with the venue's ruling on it. An empty
+      // ruling means every package is open, so that is what the screen says
+      // rather than showing ten toggles that are all doing nothing.
+      const access = context.config.packageAccess ?? {};
+      const seen = await context.store.members.listPackages();
+      const ruled = Object.keys(access).length > 0;
+
       return json(request, {
         ok: true,
         // Whether Hapana answers at all changes what this list means: with no
         // key it is the entire membership, not a supplement to it.
         hapanaConfigured: Boolean(process.env.HAPANA_API_KEY),
         people: merge(staff, members, credentials),
+        packagesRuled: ruled,
+        packages: seen.map((entry) => ({
+          ...entry,
+          allowed: ruled ? access[entry.name] === true : true,
+          // A package holding members that nobody has ruled on, once ruling
+          // has started. Worth saying out loud: those members cannot book.
+          unruled: ruled && !(entry.name in access),
+        })),
       });
     }
 
@@ -160,7 +177,38 @@ export default async (request: Request): Promise<Response> => {
     }
 
     if (request.method === 'PATCH') {
-      const body = await readJson<{ email?: unknown; role?: unknown; signIn?: unknown; status?: unknown }>(request);
+      const body = await readJson<{
+        email?: unknown; role?: unknown; signIn?: unknown; status?: unknown;
+        package?: unknown; allowed?: unknown;
+      }>(request);
+
+      // Opening or closing a package, which is about nobody in particular and
+      // so does not carry an address.
+      if (body.package !== undefined) {
+        const name = requireString(body.package, 'package', 200);
+        if (typeof body.allowed !== 'boolean') throw new BookingError('INVALID_REQUEST', { field: 'allowed' });
+
+        const current = context.config.packageAccess ?? {};
+        // The first ruling closes everything it does not name, so the packages
+        // already in front of the admin are written down as open. Without this
+        // the first toggle would silently lock out every other package on the
+        // screen, which is not what pressing one switch should mean.
+        const base = Object.keys(current).length > 0
+          ? current
+          : Object.fromEntries((await context.store.members.listPackages()).map((p) => [p.name, true]));
+
+        const next = { ...base, [name]: body.allowed };
+        await context.store.config.set(configKeyFor('packageAccess'), next, caller.email, null);
+
+        console.log(`[member-booking] ${caller.email} ${body.allowed ? 'opened' : 'closed'} the ${name} package`);
+        return json(request, {
+          ok: true,
+          message: body.allowed
+            ? `${name} can book. Anyone holding it signs in from now on.`
+            : `${name} can no longer book. A session already open ends within 12 hours.`,
+        });
+      }
+
       const email = normaliseEmail(body.email);
       const { staff, members, credentials } = await load();
       const all = merge(staff, members, credentials);
@@ -355,7 +403,10 @@ async function importMembers(
   const update: Array<{ email: string; name: string }> = [];
   const skippedStaff: string[] = [];
   const seen = new Set<string>();
-  const toWrite: Array<{ email: string; firstName: string | null; lastName: string | null; status: MembershipStatus }> = [];
+  const toWrite: Array<{
+    email: string; firstName: string | null; lastName: string | null;
+    status: MembershipStatus; membershipPackage: string | null;
+  }> = [];
   let unchanged = 0;
   let invalid = 0;
   let excludedByType = 0;
@@ -390,16 +441,20 @@ async function importMembers(
       : mapMembershipStatus(row.status);
 
     const label = [firstName, lastName].filter(Boolean).join(' ') || email;
+    const membershipPackage = type || null;
     const held = existing.get(email);
     if (!held) {
       add.push({ email, name: label });
-    } else if (held.status !== status || held.firstName !== firstName || held.lastName !== lastName) {
+    } else if (
+      held.status !== status || held.firstName !== firstName || held.lastName !== lastName
+      || held.membershipPackage !== membershipPackage
+    ) {
       update.push({ email, name: label });
     } else {
       unchanged += 1;
       continue;
     }
-    toWrite.push({ email, firstName, lastName, status });
+    toWrite.push({ email, firstName, lastName, status, membershipPackage });
   }
 
   // In the app as a member, absent from the file. Offered rather than assumed:
@@ -425,6 +480,7 @@ async function importMembers(
           lastName: held.lastName,
           status: 'cancelled',
           homeVenueId: held.homeVenueId,
+          membershipPackage: held.membershipPackage,
         });
       }
     }
