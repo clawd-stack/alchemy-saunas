@@ -37,6 +37,7 @@ export async function renderPeople(host, { messages, reload }) {
       data.people.length
         ? table(['Person', 'Role', 'Sign-in', ''], data.people.map((person) => row(person, { messages, reload })))
         : el('p', { class: 'muted', text: 'Nobody yet.' }),
+      ...packages(data, { messages, reload }),
       addForm({ messages, reload }),
       importPanel({ messages, reload }),
     ];
@@ -184,4 +185,60 @@ function addForm({ messages, reload }) {
   });
 
   return form;
+}
+
+/**
+ * Which membership packages reach this channel.
+ *
+ * Membership status is Hapana's answer to a different question, whether
+ * somebody is paying. This is the venue's answer to this one: whether the
+ * member channel is part of what they pay for. One switch per package, with
+ * the number of people it would affect next to it, because that number is the
+ * whole decision.
+ */
+function packages(data, { messages, reload }) {
+  if (!data.packages?.length) return [];
+
+  const unruled = data.packages.filter((entry) => entry.unruled);
+
+  return [
+    el('section', { class: 'stack', style: 'margin-top:36px' }, [
+      el('h3', { style: 'margin:0', text: 'Membership packages' }),
+      el('p', { class: 'hint', style: 'margin:0', text: data.packagesRuled
+        ? 'Only the packages switched on can book. A package nobody has ruled on is closed.'
+        : 'Every package can book. Switch one off and from then on only the packages left on can.' }),
+      unruled.length ? el('div', { class: 'notice notice--warn', text:
+        `${unruled.length === 1 ? 'One package has' : `${unruled.length} packages have`} appeared since these were set: ` +
+        `${unruled.map((entry) => entry.name).join(', ')}. Nobody holding ${unruled.length === 1 ? 'it' : 'them'} can book.` }) : null,
+      el('div', { class: 'stack' }, data.packages.map((entry) => packageRow(entry, { messages, reload }))),
+    ]),
+  ];
+}
+
+function packageRow(entry, { messages, reload }) {
+  const box = el('input', { type: 'checkbox', checked: entry.allowed ? 'checked' : null });
+
+  box.addEventListener('change', async () => {
+    const wanted = box.checked;
+    box.disabled = true;
+    try {
+      const result = await api.patch('/api/admin/people', { package: entry.name, allowed: wanted });
+      notice(messages, 'good', result.message);
+      await reload();
+    } catch (error) {
+      notice(messages, 'bad', error.message);
+      box.checked = entry.allowed;
+    } finally {
+      box.disabled = false;
+    }
+  });
+
+  return el('label', { class: 'consent row--between' }, [
+    el('span', { class: 'row row--tight', style: 'gap:12px' }, [
+      box,
+      el('span', { text: entry.name }),
+    ]),
+    el('span', { class: 'muted', style: 'white-space:nowrap', text:
+      `${entry.members} ${entry.members === 1 ? 'member' : 'members'}` }),
+  ]);
 }

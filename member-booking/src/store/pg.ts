@@ -121,6 +121,7 @@ function mapMember(row: any): MemberRecord {
     lastName: row.last_name ?? null,
     status: row.status,
     homeVenueId: row.home_venue_id ?? null,
+    membershipPackage: row.membership_package ?? null,
     syncedAt: iso(row.synced_at),
     source: row.source === 'manual' ? 'manual' : 'hapana',
   };
@@ -493,21 +494,26 @@ export function createPgStore(connectionString?: string): Store {
         const [row]: any[] = await sql()`select * from members_cache where member_id = ${memberId}`;
         return row ? mapMember(row) : null;
       },
-      async upsertManual({ email, firstName, lastName, status, homeVenueId }): Promise<MemberRecord> {
+      async upsertManual({ email, firstName, lastName, status, homeVenueId, membershipPackage = null }): Promise<MemberRecord> {
         // Keyed on the address, so re-adding somebody updates them rather than
         // creating a second membership for the same person. The id is derived
         // from the address for the same reason, and prefixed so it can never
         // collide with a Hapana id or be overwritten by a sync.
         const normalised = email.toLowerCase();
         const [row]: any[] = await sql()`
-          insert into members_cache (member_id, email, first_name, last_name, status, home_venue_id, source, synced_at)
-          values (${`manual:${normalised}`}, ${normalised}, ${firstName}, ${lastName}, ${status}, ${homeVenueId}, 'manual', now())
+          insert into members_cache (member_id, email, first_name, last_name, status, home_venue_id,
+                                     membership_package, source, synced_at)
+          values (${`manual:${normalised}`}, ${normalised}, ${firstName}, ${lastName}, ${status}, ${homeVenueId},
+                  ${membershipPackage}, 'manual', now())
           on conflict (member_id) do update
             set email = excluded.email,
                 first_name = excluded.first_name,
                 last_name = excluded.last_name,
                 status = excluded.status,
                 home_venue_id = excluded.home_venue_id,
+                -- Kept when the caller has nothing to say about it, so a hand
+                -- edit does not erase what an import established.
+                membership_package = coalesce(excluded.membership_package, members_cache.membership_package),
                 source = 'manual',
                 synced_at = now()
           returning *
@@ -521,6 +527,17 @@ export function createPgStore(connectionString?: string): Store {
           select max(synced_at) as at from members_cache where source = 'hapana'
         `;
         return row?.at ? new Date(row.at) : null;
+      },
+
+      async listPackages(): Promise<Array<{ name: string; members: number }>> {
+        const rows: any[] = await sql()`
+          select membership_package as name, count(*)::int as members
+          from members_cache
+          where membership_package is not null and membership_package <> ''
+          group by membership_package
+          order by count(*) desc, membership_package
+        `;
+        return rows.map((row) => ({ name: row.name, members: Number(row.members) }));
       },
 
       async listManual(): Promise<MemberRecord[]> {
@@ -546,16 +563,18 @@ export function createPgStore(connectionString?: string): Store {
           last_name: m.lastName,
           status: m.status,
           home_venue_id: m.homeVenueId,
+          membership_package: m.membershipPackage,
           synced_at: new Date(),
         }));
         await s`
-          insert into members_cache ${s(rows as any, 'member_id', 'email', 'first_name', 'last_name', 'status', 'home_venue_id', 'synced_at')}
+          insert into members_cache ${s(rows as any, 'member_id', 'email', 'first_name', 'last_name', 'status', 'home_venue_id', 'membership_package', 'synced_at')}
           on conflict (member_id) do update
             set email = excluded.email,
                 first_name = excluded.first_name,
                 last_name = excluded.last_name,
                 status = excluded.status,
                 home_venue_id = excluded.home_venue_id,
+                membership_package = coalesce(excluded.membership_package, members_cache.membership_package),
                 synced_at = excluded.synced_at
         `;
       },

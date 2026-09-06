@@ -20,6 +20,49 @@ export interface VerifiedMember {
   staleSince: string | null;
 }
 
+/**
+ * Whether the package a member holds reaches this channel.
+ *
+ * An empty map means every package does, which is what the channel did before
+ * packages were recorded and is therefore what a deployment that has never
+ * opened the screen keeps doing. From the first entry onwards the map is the
+ * whole answer, and a package nobody has ruled on is closed: an unknown
+ * package admitting somebody is an unauthorised entry, and one turning them
+ * away is a support call.
+ *
+ * A member with no package is always allowed. That is somebody the venue added
+ * by hand, or a record from before packages were read, and either way a
+ * decision made about packages should not quietly revoke them.
+ */
+export function packageAllows(access: Record<string, boolean>, membershipPackage: string | null): boolean {
+  if (!membershipPackage) return true;
+  if (Object.keys(access).length === 0) return true;
+  return access[membershipPackage] === true;
+}
+
+/**
+ * Whether the package rules turn this member away.
+ *
+ * Costs nothing until the venue has actually ruled on a package: with an empty
+ * map this answers immediately and never reads anything. Once there are rules,
+ * a path that does not already hold the member's row pays one indexed read for
+ * it, which is the price of the rule being applied at sign-in and again at
+ * booking rather than only at import time.
+ */
+async function packageDenies(
+  context: Pick<Context, 'store' | 'config'>,
+  lookup: { record?: MemberRecord | null; memberId?: string; email?: string },
+): Promise<boolean> {
+  const access = context.config.packageAccess ?? {};
+  if (Object.keys(access).length === 0) return false;
+
+  const record = lookup.record
+    ?? (lookup.memberId ? await context.store.members.get(lookup.memberId) : null)
+    ?? (lookup.email ? await context.store.members.getByEmail(lookup.email) : null);
+
+  return !packageAllows(access, record?.membershipPackage ?? null);
+}
+
 function displayName(first: string | null, last: string | null, email: string): string {
   const name = [first, last].filter(Boolean).join(' ').trim();
   return name.length > 0 ? name : email;
@@ -41,9 +84,15 @@ export async function verifyMemberByEmail(
       // Keep the cache warm on every live hit so the Pattern B fallback has
       // something recent to fall back to.
       await context.store.members.upsertMany([toRecord(member)]);
-      return member.status === 'active'
-        ? { memberId: member.memberId, email: member.email, name: displayName(member.firstName, member.lastName, member.email), status: member.status, staleSince: null }
-        : null;
+      if (member.status !== 'active') return null;
+      if (await packageDenies(context, { memberId: member.memberId, email: member.email })) return null;
+      return {
+        memberId: member.memberId,
+        email: member.email,
+        name: displayName(member.firstName, member.lastName, member.email),
+        status: member.status,
+        staleSince: null,
+      };
     }
     // Hapana answered, and does not know this address. It may still be somebody
     // the venue added by hand, which is the whole point of a manual entry: a
@@ -58,6 +107,7 @@ export async function verifyMemberByEmail(
     console.warn('[member-booking] membership lookup failed, falling back to cache', error);
     const cached = await context.store.members.getByEmail(email);
     if (!cached || cached.status !== 'active') return null;
+    if (await packageDenies(context, { record: cached })) return null;
     return {
       memberId: cached.memberId,
       email: cached.email,
@@ -80,11 +130,12 @@ export async function verifyMemberByEmail(
  * with its own row, and removing it removes access immediately.
  */
 async function manualMember(
-  context: Pick<Context, 'store'>,
+  context: Pick<Context, 'store' | 'config'>,
   email: string,
 ): Promise<VerifiedMember | null> {
   const record = await context.store.members.getByEmail(email);
   if (!record || record.source !== 'manual' || record.status !== 'active') return null;
+  if (await packageDenies(context, { record })) return null;
   return {
     memberId: record.memberId,
     email: record.email,
@@ -130,6 +181,7 @@ export async function verifyMemberById(
   if (memberId.startsWith('manual:')) {
     const record = await context.store.members.get(memberId);
     if (!record || record.source !== 'manual' || record.status !== 'active') return null;
+    if (await packageDenies(context, { record })) return null;
     return {
       memberId: record.memberId,
       email: record.email,
@@ -143,6 +195,7 @@ export async function verifyMemberById(
     const member = await liveLookup(context, memberId);
     if (!member || member.status !== 'active') return null;
     await context.store.members.upsertMany([toRecord(member)]);
+    if (await packageDenies(context, { memberId: member.memberId, email: member.email })) return null;
     return {
       memberId: member.memberId,
       email: member.email,
@@ -157,6 +210,7 @@ export async function verifyMemberById(
     console.warn('[member-booking] membership re-check failed, falling back to cache', error);
     const cached = await context.store.members.get(memberId);
     if (!cached || cached.status !== 'active') return null;
+    if (await packageDenies(context, { record: cached })) return null;
     return {
       memberId: cached.memberId,
       email: cached.email,
@@ -174,8 +228,14 @@ function toRecord(member: {
   lastName: string | null;
   status: MembershipStatus;
   homeVenueId: string | null;
+  membershipPackage?: string | null;
 }): MemberRecord {
-  return { ...member, syncedAt: new Date().toISOString(), source: 'hapana' };
+  return {
+    ...member,
+    membershipPackage: member.membershipPackage ?? null,
+    syncedAt: new Date().toISOString(),
+    source: 'hapana',
+  };
 }
 
 /** Pattern B scheduled sync. Returns the number of members refreshed. */

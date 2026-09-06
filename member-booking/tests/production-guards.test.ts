@@ -79,6 +79,7 @@ describe('production with no Hapana key', () => {
       status: 'active',
       homeVenueId: 'east-fremantle',
       syncedAt: new Date().toISOString(),
+      membershipPackage: null,
       source: 'hapana' as const,
     });
 

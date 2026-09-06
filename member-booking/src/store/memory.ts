@@ -586,9 +586,18 @@ export function createMemoryStore(): MemoryStore {
         return members.get(memberId) ?? null;
       },
       async upsertMany(list: MemberRecord[]): Promise<void> {
-        for (const member of list) members.set(member.memberId, { ...member, syncedAt: new Date().toISOString() });
+        for (const member of list) {
+          members.set(member.memberId, {
+            ...member,
+            // A sync that says nothing about the package must not erase what an
+            // import established. The Postgres store coalesces for the same
+            // reason; the two have to agree.
+            membershipPackage: member.membershipPackage ?? members.get(member.memberId)?.membershipPackage ?? null,
+            syncedAt: new Date().toISOString(),
+          });
+        }
       },
-      async upsertManual({ email, firstName, lastName, status, homeVenueId }): Promise<MemberRecord> {
+      async upsertManual({ email, firstName, lastName, status, homeVenueId, membershipPackage }): Promise<MemberRecord> {
         const normalised = email.toLowerCase();
         const memberId = `manual:${normalised}`;
         const record: MemberRecord = {
@@ -598,6 +607,9 @@ export function createMemoryStore(): MemoryStore {
           lastName,
           status,
           homeVenueId,
+          // Kept when the caller says nothing, so a hand edit does not erase
+          // what an import established.
+          membershipPackage: membershipPackage ?? members.get(memberId)?.membershipPackage ?? null,
           syncedAt: new Date().toISOString(),
           source: 'manual',
         };
@@ -609,6 +621,17 @@ export function createMemoryStore(): MemoryStore {
           .filter((member) => member.source === 'hapana')
           .map((member) => new Date(member.syncedAt).getTime());
         return times.length ? new Date(Math.max(...times)) : null;
+      },
+
+      async listPackages(): Promise<Array<{ name: string; members: number }>> {
+        const counts = new Map<string, number>();
+        for (const member of members.values()) {
+          const name = member.membershipPackage;
+          if (name) counts.set(name, (counts.get(name) ?? 0) + 1);
+        }
+        return [...counts.entries()]
+          .map(([name, count]) => ({ name, members: count }))
+          .sort((a, b) => b.members - a.members || a.name.localeCompare(b.name));
       },
 
       async listManual(): Promise<MemberRecord[]> {

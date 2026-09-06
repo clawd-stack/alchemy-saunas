@@ -190,7 +190,7 @@ describe('where a manual member sits against Hapana', () => {
     await store.members.upsertManual({ email: 'manual@example.com', firstName: 'Mo', lastName: null, status: 'active', homeVenueId: VENUE_ID });
 
     await store.members.upsertMany([
-      { memberId: ACTIVE_MEMBER.memberId, email: ACTIVE_MEMBER.email, firstName: 'Ada', lastName: 'Active', status: 'active', homeVenueId: VENUE_ID, syncedAt: new Date().toISOString(), source: 'hapana' },
+      { memberId: ACTIVE_MEMBER.memberId, email: ACTIVE_MEMBER.email, firstName: 'Ada', lastName: 'Active', status: 'active', homeVenueId: VENUE_ID, syncedAt: new Date().toISOString(), membershipPackage: null, source: 'hapana' },
     ]);
 
     const manual = await store.members.listManual();
@@ -200,7 +200,7 @@ describe('where a manual member sits against Hapana', () => {
 
   it('removeManual refuses to touch a synced record', async () => {
     await store.members.upsertMany([
-      { memberId: 'hapana-1', email: 'synced@example.com', firstName: null, lastName: null, status: 'active', homeVenueId: VENUE_ID, syncedAt: new Date().toISOString(), source: 'hapana' },
+      { memberId: 'hapana-1', email: 'synced@example.com', firstName: null, lastName: null, status: 'active', homeVenueId: VENUE_ID, syncedAt: new Date().toISOString(), membershipPackage: null, source: 'hapana' },
     ]);
     expect(await store.members.removeManual('hapana-1')).toBe(false);
     expect(await store.members.get('hapana-1')).not.toBeNull();
