@@ -92,19 +92,24 @@ describe('POST /api/admin/people { action: import }', () => {
     ]);
   });
 
-  it('imports only the types asked for', async () => {
-    const { body } = await importRows(ROWS, { types: ['unlimited'], apply: true });
-    expect(body.plan.add.map((p: any) => p.email)).toEqual(['ada@example.com', 'ben@example.com']);
-    expect(body.plan.excludedByType).toBe(1);
-    expect((await members()).has('cas@example.com')).toBe(false);
+  it('imports everybody in the file, whatever package they hold', async () => {
+    // The package decides whether somebody can book, and that decision is made
+    // once in Settings and applied at sign-in. Leaving people out of the
+    // import instead would freeze it into who happened to be imported, and
+    // changing your mind later would mean importing again.
+    const { body } = await importRows(ROWS, { apply: true });
+    expect(body.plan.add.map((p: any) => p.email))
+      .toEqual(['ada@example.com', 'ben@example.com', 'cas@example.com']);
+    expect((await members()).has('cas@example.com')).toBe(true);
   });
 
-  it('reads an empty type list as none, not as all', async () => {
-    // Somebody unticking every type is giving a real answer. Reading it as
-    // "all of them" would import the whole file at the moment they said not to.
-    const { body } = await importRows(ROWS, { types: [], apply: true });
-    expect(body.plan.add).toHaveLength(0);
-    expect((await members()).size).toBe(1);
+  it('counts the packages it saw without acting on them', async () => {
+    const { body } = await importRows(ROWS);
+    expect(body.types).toEqual([
+      { type: 'Unlimited', count: 2 },
+      { type: 'Casual pack', count: 1 },
+    ]);
+    expect(body.plan.add).toHaveLength(3);
   });
 
   it('never lets a spreadsheet demote a member of staff', async () => {
@@ -138,7 +143,7 @@ describe('POST /api/admin/people { action: import }', () => {
     await importRows(ROWS, { apply: true });
     const { body } = await importRows(
       [{ email: 'ada@example.com', name: 'Ada Active', membershipType: 'Unlimited', status: 'paused' }],
-      { types: null, apply: true },
+      { apply: true },
     );
     expect(body.plan.update.map((p: any) => p.email)).toEqual(['ada@example.com']);
     expect((await members()).get('ada@example.com').status).toBe('paused');

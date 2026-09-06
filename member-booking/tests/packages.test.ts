@@ -8,7 +8,7 @@ import { STAFF_COOKIE } from '../src/lib/http.ts';
 import { CONFIG_DEFAULTS } from '../src/lib/config.ts';
 import { makeHarness, VENUE_ID } from './helpers.ts';
 
-import peopleHandler from '../netlify/functions/admin-people.ts';
+import configHandler from '../netlify/functions/admin-config.ts';
 
 /**
  * Membership packages, and which of them reach this channel.
@@ -18,6 +18,10 @@ import peopleHandler from '../netlify/functions/admin-people.ts';
  * this is the venue's answer to whether this benefit is part of what they pay
  * for, and it decides who can book, so the direction it fails in matters more
  * than the feature does.
+ *
+ * It lives in Settings, with the rest of the rules about the channel. The
+ * import is deliberately not involved: everybody in an export is imported
+ * whatever they hold, and this decides which of those packages can book.
  */
 
 const BASE = 'http://localhost:8888';
@@ -34,7 +38,7 @@ const ADMIN = {
 const cookie = () => `${STAFF_COOKIE}=${issueStaffSession(ADMIN)}`;
 
 function patch(body: unknown): Request {
-  return new Request(`${BASE}/api/admin/people`, {
+  return new Request(`${BASE}/api/admin/config`, {
     method: 'PATCH',
     headers: { 'content-type': 'application/json', cookie: cookie() },
     body: JSON.stringify(body),
@@ -42,7 +46,7 @@ function patch(body: unknown): Request {
 }
 
 async function view() {
-  return (await (await peopleHandler(new Request(`${BASE}/api/admin/people`, { headers: { cookie: cookie() } }))).json());
+  return (await (await configHandler(new Request(`${BASE}/api/admin/config`, { headers: { cookie: cookie() } }))).json());
 }
 
 let store: MemoryStore;
@@ -133,7 +137,7 @@ describe('who can book', () => {
   });
 });
 
-describe('the screen', () => {
+describe('the Settings screen', () => {
   it('lists every package with how many people hold it', async () => {
     const body = await view();
     expect(body.packagesRuled).toBe(false);
@@ -146,7 +150,7 @@ describe('the screen', () => {
   it('writes down every package on screen when the first switch is thrown', async () => {
     // Otherwise one toggle silently locks out every other package listed,
     // which is not what pressing a single switch should mean.
-    await peopleHandler(patch({ package: 'Off-Peak Membership | East Fremantle', allowed: false }));
+    await configHandler(patch({ package: 'Off-Peak Membership | East Fremantle', allowed: false }));
 
     const body = await view();
     expect(body.packagesRuled).toBe(true);
@@ -156,7 +160,7 @@ describe('the screen', () => {
   });
 
   it('flags a package that appeared after the rules were set', async () => {
-    await peopleHandler(patch({ package: 'Off-Peak Membership | East Fremantle', allowed: false }));
+    await configHandler(patch({ package: 'Off-Peak Membership | East Fremantle', allowed: false }));
     await store.members.upsertManual({
       email: 'new@example.com', firstName: 'Nina', lastName: 'New',
       status: 'active', homeVenueId: VENUE_ID, membershipPackage: 'Founder Membership | East Fremantle',
@@ -169,13 +173,13 @@ describe('the screen', () => {
   });
 
   it('refuses anything that is not a plain yes or no', async () => {
-    const response = await peopleHandler(patch({ package: 'Platinum Membership | East Fremantle', allowed: 'yes' }));
+    const response = await configHandler(patch({ package: 'Platinum Membership | East Fremantle', allowed: 'yes' }));
     expect(response.status).toBe(400);
   });
 
-  it('is admin only', async () => {
+  it('is not something door staff can change', async () => {
     const doorCookie = `${STAFF_COOKIE}=${issueStaffSession({ ...ADMIN, role: 'door', staffId: 's2', email: 'door@example.com' })}`;
-    const response = await peopleHandler(new Request(`${BASE}/api/admin/people`, {
+    const response = await configHandler(new Request(`${BASE}/api/admin/config`, {
       method: 'PATCH',
       headers: { 'content-type': 'application/json', cookie: doorCookie },
       body: JSON.stringify({ package: 'Platinum Membership | East Fremantle', allowed: false }),

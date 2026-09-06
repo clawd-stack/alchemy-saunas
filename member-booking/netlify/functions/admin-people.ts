@@ -3,7 +3,6 @@ import { buildContext } from '../../src/domain/context.ts';
 import { requireStaff } from '../../src/lib/auth.ts';
 import { generatePassword, hashPassword, readPassword, validatePassword } from '../../src/lib/password.ts';
 import { BookingError } from '../../src/lib/errors.ts';
-import { configKeyFor } from '../../src/lib/config.ts';
 import { errorResponse, json, normaliseEmail, preflight, readJson, requireMethod, requireString } from '../../src/lib/http.ts';
 import type { MemberRecord, MembershipStatus, StaffRecord } from '../../src/store/types.ts';
 
@@ -13,7 +12,6 @@ import type { MemberRecord, MembershipStatus, StaffRecord } from '../../src/stor
  *   GET    /api/admin/people                              one list
  *   POST   /api/admin/people { action: 'add', ... }       add, with a password
  *   POST   /api/admin/people { action: 'import', ... }    bulk, from an export
- *   PATCH  /api/admin/people { package, allowed }       open or close a package
  *   POST   /api/admin/people { action: 'reset', email }   new password
  *   PATCH  /api/admin/people { email, role|signIn }       change role, suspend
  *   DELETE /api/admin/people { email }                    remove
@@ -64,34 +62,19 @@ export default async (request: Request): Promise<Response> => {
 
     if (request.method === 'GET') {
       const { staff, members, credentials } = await load();
-      // Every package anybody holds, with the venue's ruling on it. An empty
-      // ruling means every package is open, so that is what the screen says
-      // rather than showing ten toggles that are all doing nothing.
-      const access = context.config.packageAccess ?? {};
-      const seen = await context.store.members.listPackages();
-      const ruled = Object.keys(access).length > 0;
-
       return json(request, {
         ok: true,
         // Whether Hapana answers at all changes what this list means: with no
         // key it is the entire membership, not a supplement to it.
         hapanaConfigured: Boolean(process.env.HAPANA_API_KEY),
         people: merge(staff, members, credentials),
-        packagesRuled: ruled,
-        packages: seen.map((entry) => ({
-          ...entry,
-          allowed: ruled ? access[entry.name] === true : true,
-          // A package holding members that nobody has ruled on, once ruling
-          // has started. Worth saying out loud: those members cannot book.
-          unruled: ruled && !(entry.name in access),
-        })),
       });
     }
 
     if (request.method === 'POST') {
       const body = await readJson<{
         action?: unknown; email?: unknown; name?: unknown; role?: unknown; password?: unknown;
-        rows?: unknown; types?: unknown; deactivateMissing?: unknown; apply?: unknown;
+        rows?: unknown; deactivateMissing?: unknown; apply?: unknown;
       }>(request);
       const action = String(body.action ?? 'add');
 
@@ -179,35 +162,7 @@ export default async (request: Request): Promise<Response> => {
     if (request.method === 'PATCH') {
       const body = await readJson<{
         email?: unknown; role?: unknown; signIn?: unknown; status?: unknown;
-        package?: unknown; allowed?: unknown;
       }>(request);
-
-      // Opening or closing a package, which is about nobody in particular and
-      // so does not carry an address.
-      if (body.package !== undefined) {
-        const name = requireString(body.package, 'package', 200);
-        if (typeof body.allowed !== 'boolean') throw new BookingError('INVALID_REQUEST', { field: 'allowed' });
-
-        const current = context.config.packageAccess ?? {};
-        // The first ruling closes everything it does not name, so the packages
-        // already in front of the admin are written down as open. Without this
-        // the first toggle would silently lock out every other package on the
-        // screen, which is not what pressing one switch should mean.
-        const base = Object.keys(current).length > 0
-          ? current
-          : Object.fromEntries((await context.store.members.listPackages()).map((p) => [p.name, true]));
-
-        const next = { ...base, [name]: body.allowed };
-        await context.store.config.set(configKeyFor('packageAccess'), next, caller.email, null);
-
-        console.log(`[member-booking] ${caller.email} ${body.allowed ? 'opened' : 'closed'} the ${name} package`);
-        return json(request, {
-          ok: true,
-          message: body.allowed
-            ? `${name} can book. Anyone holding it signs in from now on.`
-            : `${name} can no longer book. A session already open ends within 12 hours.`,
-        });
-      }
 
       const email = normaliseEmail(body.email);
       const { staff, members, credentials } = await load();
@@ -374,7 +329,7 @@ async function importMembers(
   context: Awaited<ReturnType<typeof buildContext>>,
   request: Request,
   caller: { email: string },
-  body: { rows?: unknown; types?: unknown; deactivateMissing?: unknown; apply?: unknown },
+  body: { rows?: unknown; deactivateMissing?: unknown; apply?: unknown },
   loaded: { staff: StaffRecord[]; members: MemberRecord[] },
 ): Promise<Response> {
   const rows = Array.isArray(body.rows) ? body.rows : null;
@@ -387,11 +342,6 @@ async function importMembers(
     );
   }
 
-  // null means every type in the file. An empty array means none, which is a
-  // real answer (somebody unticked them all) and must not be read as "all".
-  const wanted = Array.isArray(body.types)
-    ? new Set(body.types.map((type) => String(type).trim().toLowerCase()))
-    : null;
   const deactivateMissing = body.deactivateMissing === true;
   const apply = body.apply === true;
 
@@ -409,7 +359,6 @@ async function importMembers(
   }> = [];
   let unchanged = 0;
   let invalid = 0;
-  let excludedByType = 0;
   let duplicates = 0;
 
   for (const raw of rows) {
@@ -419,9 +368,12 @@ async function importMembers(
     // address is both the identity and the only way to reach them.
     if (!email || !email.includes('@')) { invalid += 1; continue; }
 
+    // The package is recorded, never used to leave somebody out. Everybody in
+    // the export is a member; which packages can book is a separate decision,
+    // made once on the People screen rather than re-made on every import, and
+    // applied at sign-in where it can be changed without re-importing anybody.
     const type = String(row.membershipType ?? '').trim();
     if (type) types.set(type, (types.get(type) ?? 0) + 1);
-    if (wanted && !wanted.has(type.toLowerCase())) { excludedByType += 1; continue; }
 
     if (seen.has(email)) { duplicates += 1; continue; }
     seen.add(email);
@@ -496,7 +448,7 @@ async function importMembers(
     types: [...types.entries()]
       .map(([type, count]) => ({ type, count }))
       .sort((a, b) => b.count - a.count || a.type.localeCompare(b.type)),
-    plan: { add, update, unchanged, excludedByType, duplicates, invalid, skippedStaff, missing },
+    plan: { add, update, unchanged, duplicates, invalid, skippedStaff, missing },
     message: apply
       ? `${add.length} added, ${update.length} updated, ${unchanged} already current` +
         (deactivateMissing && missing.length ? `, ${missing.length} cancelled.` : '.')
