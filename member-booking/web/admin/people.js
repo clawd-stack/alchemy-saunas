@@ -3,13 +3,22 @@ import { showPassword } from '/admin/password-panel.js';
 import { importPanel } from '/admin/import-panel.js';
 
 /**
- * Everybody, in one table.
+ * Everybody the channel knows, in one place but not one list.
  *
- * This was three lists, and the joining between them was left to the admin:
- * a member with no password, a password issued to an address that resolved to
- * nobody, a staff account somebody also tried to add as a member. One row per
- * person, one role each, and the row says whether they can actually get in.
+ * It was one table, which was right when it held a dozen rows and wrong the
+ * moment the membership was imported: four hundred members buried the five
+ * people who actually run the venue, and every visit to change a door
+ * account's role meant scrolling past all of them.
+ *
+ * So the page is ordered by how often somebody comes here to do the thing:
+ * staff first because that is the list that gets edited, then the two ways to
+ * add people, then the membership at the bottom, behind a search box and
+ * showing a screenful at a time. It is still one role per person and one row
+ * per person; it is the order and the depth that changed.
  */
+
+/** More than a screenful, few enough to render without the page feeling slow. */
+const MEMBER_PAGE = 50;
 
 const ROLES = [
   ['member', 'Member'],
@@ -28,19 +37,71 @@ const SIGN_IN = {
 export async function renderPeople(host, { messages, reload }) {
   await load(host, messages, async () => {
     const data = await api.get('/api/admin/people');
+    const staff = data.people.filter((person) => person.role !== 'member');
+    const members = data.people.filter((person) => person.role === 'member');
 
     return [
       data.hapanaConfigured ? null : el('div', {
         class: 'notice notice--warn',
         text: 'No Hapana key set. This list is the whole membership the channel knows.',
       }),
-      data.people.length
-        ? table(['Person', 'Role', 'Sign-in', ''], data.people.map((person) => row(person, { messages, reload })))
+
+      el('h3', { class: 'section-heading', text: 'Staff' }),
+      staff.length
+        ? table(['Person', 'Role', 'Sign-in', ''], staff.map((person) => row(person, { messages, reload })))
         : el('p', { class: 'muted', text: 'Nobody yet.' }),
+
       addForm({ messages, reload }),
       importPanel({ messages, reload }),
+
+      ...membersSection(members, { messages, reload }),
     ];
   });
+}
+
+/**
+ * The membership, at the bottom and searchable.
+ *
+ * Four hundred rows of controls is a slow page and an unreadable one, so a
+ * screenful is rendered and the search narrows it. The count is always the
+ * true one: it is the number somebody came to the page to check.
+ */
+function membersSection(members, { messages, reload }) {
+  const host = el('div', {});
+  const summary = el('p', { class: 'hint', style: 'margin:0' });
+  const search = el('input', {
+    type: 'search',
+    placeholder: 'Search by name or email',
+    autocomplete: 'off',
+  });
+
+  function draw() {
+    const term = search.value.trim().toLowerCase();
+    const matched = term
+      ? members.filter((person) =>
+          person.email.toLowerCase().includes(term) || (person.name ?? '').toLowerCase().includes(term))
+      : members;
+    const shown = matched.slice(0, MEMBER_PAGE);
+
+    summary.textContent = matched.length === 0
+      ? (term ? `Nobody matches "${search.value.trim()}".` : 'No members yet.')
+      : shown.length < matched.length
+        ? `Showing ${shown.length} of ${matched.length}${term ? ' matching' : ''}. Search to narrow it.`
+        : `${matched.length} ${matched.length === 1 ? 'member' : 'members'}${term ? ' matching' : ''}.`;
+
+    host.innerHTML = '';
+    if (shown.length) {
+      host.append(table(['Person', 'Role', 'Sign-in', ''], shown.map((person) => row(person, { messages, reload }))));
+    }
+  }
+
+  search.addEventListener('input', draw);
+  draw();
+
+  return [
+    el('h3', { class: 'section-heading', text: `Members (${members.length})` }),
+    el('div', { class: 'stack' }, [search, summary, host]),
+  ];
 }
 
 function row(person, { messages, reload }) {

@@ -31,6 +31,33 @@
         </div>
         <button class="btn-primary" type="submit" id="signin-button">Sign in</button>
       </form>
+
+      <p class="hint" style="margin:18px 0 0">
+        First time here?
+        <button class="link-button" type="button" id="first-time">Set your password</button>
+      </p>
+
+      <form id="claim-form" class="stack" hidden>
+        <h3 style="margin:0">Set your password</h3>
+        <p class="hint" style="margin:0">
+          Use the email address Alchemy has for your membership. You choose the password,
+          and it is the one you will sign in with from now on.
+        </p>
+        <div>
+          <label for="claim-email">Email</label>
+          <input id="claim-email" type="email" autocomplete="email" required>
+        </div>
+        <div>
+          <label for="claim-password">New password (at least 12 characters)</label>
+          <input id="claim-password" type="password" autocomplete="new-password" minlength="12" required>
+        </div>
+        <div>
+          <label for="claim-confirm">New password again</label>
+          <input id="claim-confirm" type="password" autocomplete="new-password" required>
+        </div>
+        <button class="btn-primary" type="submit" id="claim-button">Set password and sign in</button>
+        <button class="btn-quiet btn-small btn-inline" type="button" id="claim-cancel">Back to signing in</button>
+      </form>
     </section>
 
     <p class="support" id="support" hidden></p>
