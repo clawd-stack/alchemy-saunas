@@ -1,15 +1,13 @@
-import { el } from '/ui.js';
 import { mountAdminPage } from '/admin/shell.js';
 import { renderPeople } from '/admin/people.js';
 
 mountAdminPage({
   roles: ['admin'],
   run: async ({ messages }) => {
+    // No card here: the page is several of them, one per section, and
+    // renderPeople is what knows where each one starts and ends.
     const host = document.getElementById('people');
-    host.innerHTML = '';
-    const card = el('div', { class: 'card' });
-    host.append(card);
-    const reload = () => renderPeople(card, { messages, reload });
+    const reload = () => renderPeople(host, { messages, reload });
     await reload();
   },
 });

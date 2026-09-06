@@ -146,7 +146,6 @@ export function importPanel({ messages, reload }) {
   apply.addEventListener('click', () => send(true));
 
   return el('section', { class: 'stack' }, [
-    el('h3', { class: 'section-heading', text: 'Import from an export' }),
     el('p', { class: 'hint', style: 'margin:0', text:
       'A CSV from Hapana, or any file with an email column. Nothing is written until you press Apply.' }),
     el('div', {}, [el('label', { text: 'File' }), file]),

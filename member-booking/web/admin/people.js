@@ -10,11 +10,14 @@ import { importPanel } from '/admin/import-panel.js';
  * people who actually run the venue, and every visit to change a door
  * account's role meant scrolling past all of them.
  *
- * So the page is ordered by how often somebody comes here to do the thing:
- * staff first because that is the list that gets edited, then the two ways to
- * add people, then the membership at the bottom, behind a search box and
- * showing a screenful at a time. It is still one role per person and one row
- * per person; it is the order and the depth that changed.
+ * Four boxes now, not four headings down one long scroll. On a phone a rule
+ * between sections is invisible by the time you have scrolled past it, so each
+ * section is a card that starts and ends somewhere you can see.
+ *
+ * Ordered by why somebody opened the page: adding one person is the thing that
+ * brings people here and it is now first, then staff, which is the list that
+ * gets edited, then the bulk import, then the membership, behind a search box
+ * and showing a screenful at a time.
  */
 
 /** More than a screenful, few enough to render without the page feeling slow. */
@@ -44,16 +47,24 @@ export async function renderPeople(host, { messages, reload }) {
     const members = data.people.filter((person) => person.role === 'member');
 
     return [
-      el('h3', { class: 'section-heading', text: 'Staff' }),
-      staff.length
-        ? table(['Person', 'Role', 'Sign-in', ''], staff.map((person) => row(person, { messages, reload })))
-        : el('p', { class: 'muted', text: 'Nobody yet.' }),
-      addForm({ messages, reload }),
-      importPanel({ messages, reload }),
-
-      ...membersSection(members, { messages, reload }),
+      card('Add someone', [addForm({ messages, reload })]),
+      card('Staff', [
+        staff.length
+          ? table(['Person', 'Role', 'Sign-in', ''], staff.map((person) => row(person, { messages, reload })))
+          : el('p', { class: 'muted', text: 'Nobody yet.' }),
+      ]),
+      card('Import from an export', [importPanel({ messages, reload })]),
+      card(`Members (${members.length})`, membersSection(members, { messages, reload })),
     ];
   });
+}
+
+/** One section, in a box of its own, with the heading the box starts at. */
+function card(title, children) {
+  return el('div', { class: 'card' }, [
+    el('h3', { class: 'section-heading', text: title }),
+    ...children,
+  ]);
 }
 
 /**
@@ -98,10 +109,7 @@ function membersSection(members, { messages, reload }) {
   search.addEventListener('input', draw);
   draw();
 
-  return [
-    el('h3', { class: 'section-heading', text: `Members (${members.length})` }),
-    el('div', { class: 'stack' }, [search, summary, host]),
-  ];
+  return [el('div', { class: 'stack' }, [search, summary, host])];
 }
 
 function row(person, { messages, reload, showPackage = false }) {
@@ -134,7 +142,7 @@ function row(person, { messages, reload, showPackage = false }) {
     // decides whether they can book. Blank for somebody added by hand, and for
     // anybody imported before packages were recorded.
     showPackage
-      ? el('td', {}, [el('span', {
+      ? el('td', { style: 'white-space:nowrap' }, [el('span', {
           class: person.membershipPackage ? 'item__meta' : 'muted',
           text: person.membershipPackage ?? 'None',
         })])
@@ -241,7 +249,6 @@ function addForm({ messages, reload }) {
   describe();
 
   const form = el('form', { class: 'stack' }, [
-    el('h3', { class: 'section-heading', text: 'Add someone' }),
     el('div', {}, [el('label', { text: 'Name' }), name]),
     el('div', {}, [el('label', { text: 'Email' }), email]),
     el('div', {}, [el('label', { text: 'Role' }), role]),
