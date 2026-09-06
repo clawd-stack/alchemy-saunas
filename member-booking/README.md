@@ -200,8 +200,12 @@ Three ideas keep this maintainable:
 | `GET /api/admin/reconciliation` | staff | The daily CSV. |
 | `GET /api/health` | anyone | Readiness, including the outstanding blockers. |
 
-Two scheduled functions run hourly: waiver reminders 24 hours out, and the
-membership cache refresh plus timetable materialisation.
+Two scheduled functions. Waiver reminders run hourly, because a reminder 24
+hours out has to be able to fire in any hour. The membership cache refresh and
+timetable materialisation run weekly, Monday 06:00 Perth: membership is read
+live from Hapana at sign-in and again at booking, so the cache is an outage
+fallback rather than the thing anyone is verified against, and the timetable is
+materialised on every availability read regardless.
 
 ---
 
