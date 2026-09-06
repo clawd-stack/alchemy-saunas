@@ -15,9 +15,13 @@ const COLUMNS = {
   lastName: ['last name', 'lastname', 'surname', 'family name', 'last'],
   name: ['name', 'full name', 'member name', 'member', 'client name'],
   status: ['status', 'membership status', 'member status', 'account status', 'state'],
+  // "package name" first, and ahead of "package type": Hapana's active
+  // membership report carries both, and the type column reads "Membership"
+  // on every row while the name is the thing being ruled on.
   membershipType: [
-    'membership type', 'membership', 'member type', 'plan', 'plan name',
-    'product', 'product name', 'package', 'contract', 'membership name',
+    'package name', 'membership package', 'membership name', 'membership type',
+    'plan name', 'product name', 'package', 'membership', 'member type',
+    'plan', 'product', 'contract', 'package type',
   ],
 };
 

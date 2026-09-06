@@ -60,6 +60,22 @@ describe('parseExport', () => {
     }
   });
 
+  it("reads Hapana's own active membership export", () => {
+    // The header Hapana's getactivemembershippkgs report actually produces.
+    // Its "Package Type" column reads "Membership" on every row, so the name
+    // has to win: the name is the thing the venue rules on.
+    const { rows, headers } = parseExport(
+      'Full Name,Email,Package Name,Package Type,Package Price,Date Sold,Auto Renew,Auto Renew Date,Expiry date,Payment Gateway\n' +
+      '"Gus Harris","gus@example.com","EF Membership | East Fremantle","Membership","$0.00", 25/06/2026,"No","","Unending",""\n',
+    );
+    expect(headers.membershipType).toBe('Package Name');
+    expect(rows[0]).toMatchObject({
+      email: 'gus@example.com',
+      name: 'Gus Harris',
+      membershipType: 'EF Membership | East Fremantle',
+    });
+  });
+
   it('refuses a file with no email column, and says what it did find', () => {
     // Better than importing nothing and reporting success, which is what a
     // silent skip of every row would look like from the outside.
