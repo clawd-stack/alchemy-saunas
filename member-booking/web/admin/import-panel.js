@@ -12,6 +12,12 @@ import { parseExport } from '/admin/export-reader.js';
  * and shown back before anything is sent, and so what does get sent is a
  * normalised list the endpoint can check field by field. Nothing is written
  * until Apply: Preview asks for the plan and shows exactly what would change.
+ *
+ * Everybody in the file is imported. The packages found are listed because it
+ * is worth seeing what is in a file before applying it, but they are not a
+ * filter: which packages can book is one decision, made on the switches below
+ * this panel and applied at sign-in, rather than a decision re-made on every
+ * import and frozen into who happens to have been imported since.
  */
 
 export function importPanel({ messages, reload }) {
@@ -21,15 +27,14 @@ export function importPanel({ messages, reload }) {
     placeholder: 'or paste the export here, including its header row',
     spellcheck: 'false',
   });
-  const typesHost = el('div', { class: 'stack', hidden: 'hidden' });
+  const typesHost = el('div', { hidden: 'hidden' });
   const planHost = el('div', {});
 
   const preview = el('button', { class: 'btn-quiet btn-inline', type: 'button', text: 'Preview' });
   const apply = el('button', { class: 'btn-primary btn-inline', type: 'button', text: 'Apply', disabled: 'disabled' });
   const deactivate = el('input', { type: 'checkbox' });
 
-  let parsed = null;   // { rows, headers, ignored }
-  let chosen = null;   // Set of membership types to include, or null for all
+  let parsed = null;   // { rows, headers }
 
   file.addEventListener('change', async () => {
     const chosenFile = file.files?.[0];
@@ -58,26 +63,25 @@ export function importPanel({ messages, reload }) {
   function drawTypes() {
     const counts = new Map();
     for (const row of parsed.rows) {
-      const type = row.membershipType || 'No type given';
+      const type = row.membershipType || 'No package named';
       counts.set(type, (counts.get(type) ?? 0) + 1);
     }
-    chosen = new Set([...counts.keys()].filter((type) => type !== 'No type given'));
 
     typesHost.innerHTML = '';
     typesHost.hidden = counts.size === 0;
     if (counts.size === 0) return;
 
-    typesHost.append(el('label', { text: 'Membership types to import' }));
-    for (const [type, count] of [...counts.entries()].sort((a, b) => b[1] - a[1])) {
-      const box = el('input', { type: 'checkbox', checked: chosen.has(type) ? 'checked' : null });
-      box.addEventListener('change', () => {
-        if (box.checked) chosen.add(type);
-        else chosen.delete(type);
-        apply.disabled = true;
-        planHost.innerHTML = '';
-      });
-      typesHost.append(el('label', { class: 'consent' }, [box, el('span', { text: `${type} (${count})` })]));
-    }
+    typesHost.append(
+      el('label', { text: 'Packages in this file' }),
+      el('div', { class: 'stack' }, [...counts.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .map(([type, count]) => el('p', { class: 'row row--between', style: 'margin:0' }, [
+          el('span', { text: type }),
+          el('span', { class: 'muted', style: 'white-space:nowrap', text: `${count}` }),
+        ]))),
+      el('p', { class: 'hint', style: 'margin:6px 0 0', text:
+        'All of them are imported. Which ones can book is set by the switches under Membership packages.' }),
+    );
   }
 
   async function send(shouldApply) {
@@ -88,7 +92,6 @@ export function importPanel({ messages, reload }) {
       const result = await api.post('/api/admin/people', {
         action: 'import',
         rows: parsed.rows,
-        types: chosen ? [...chosen] : null,
         deactivateMissing: deactivate.checked,
         apply: shouldApply,
       });
@@ -122,7 +125,6 @@ export function importPanel({ messages, reload }) {
     );
 
     const notes = [
-      plan.excludedByType ? `${plan.excludedByType} excluded by membership type.` : null,
       plan.skippedStaff.length ? `Skipped, because they are staff: ${plan.skippedStaff.join(', ')}.` : null,
       plan.duplicates ? `${plan.duplicates} duplicate ${plan.duplicates === 1 ? 'address' : 'addresses'}, first kept.` : null,
       plan.invalid ? `${plan.invalid} ${plan.invalid === 1 ? 'row' : 'rows'} had no usable email address.` : null,
@@ -143,8 +145,8 @@ export function importPanel({ messages, reload }) {
   preview.addEventListener('click', () => send(false));
   apply.addEventListener('click', () => send(true));
 
-  return el('section', { class: 'stack', style: 'margin-top:36px' }, [
-    el('h3', { style: 'margin:0', text: 'Import from an export' }),
+  return el('section', { class: 'stack' }, [
+    el('h3', { class: 'section-heading', text: 'Import from an export' }),
     el('p', { class: 'hint', style: 'margin:0', text:
       'A CSV from Hapana, or any file with an email column. Nothing is written until you press Apply.' }),
     el('div', {}, [el('label', { text: 'File' }), file]),

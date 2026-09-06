@@ -10,6 +10,7 @@ import { ACTIVE_MEMBER, PAUSED_MEMBER, VENUE_ID } from './helpers.ts';
 
 import peopleHandler from '../netlify/functions/admin-people.ts';
 import loginHandler from '../netlify/functions/auth-login.ts';
+import claimHandler from '../netlify/functions/auth-claim.ts';
 
 /**
  * Members the venue holds itself.
@@ -58,21 +59,48 @@ beforeEach(() => {
 });
 
 describe('adding a member by hand', () => {
-  it('creates the membership and a password together', async () => {
+  it('creates the membership and leaves the password to them', async () => {
     const body = await (await peopleHandler(call({ action: 'add', email: 'New@Example.com', name: 'Nia New', role: 'member' }))).json();
 
     expect(body.email).toBe('new@example.com');
-    expect(body.password).toHaveLength(20);
-    expect((await store.credentials.get('new@example.com'))?.mustChange).toBe(true);
+    // Issuing one here used to be the whole point, and it was wrong: an
+    // address that already has a password cannot be claimed, so it took the
+    // first-login flow away from the one person most likely to need it and
+    // left the venue holding a password to pass on by hand.
+    expect(body.password).toBeNull();
+    expect(await store.credentials.get('new@example.com')).toBeNull();
 
-    // Both halves, or the member cannot actually do anything.
-    const login = await loginHandler(new Request(`${BASE}/api/auth/login`, {
+    // And the way in is the one everybody else uses.
+    const claimed = await claimHandler(new Request(`${BASE}/api/auth/claim`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ email: 'new@example.com', password: body.password }),
+      body: JSON.stringify({ email: 'new@example.com', password: 'a-password-they-chose' }),
     }));
-    expect(login.status).toBe(200);
-    expect((await login.json()).kind).toBe('member');
+    expect(claimed.status).toBe(200);
+    expect((await claimed.json()).kind).toBe('member');
+  });
+
+  it('still issues one to staff, who cannot set their own', async () => {
+    // The claim refuses a staff address on purpose, so a staff account with no
+    // password is an account nobody can ever sign in to.
+    const body = await (await peopleHandler(call({ action: 'add', email: 'dee@example.com', name: 'Dee Door', role: 'door' }))).json();
+    expect(body.password).toHaveLength(20);
+    expect((await store.credentials.get('dee@example.com'))?.mustChange).toBe(true);
+  });
+
+  it('issues the password the admin typed, whatever the role', async () => {
+    const body = await (await peopleHandler(call({
+      action: 'add', email: 'chosen@example.com', name: 'Chosen One', role: 'member',
+      password: 'a-password-the-admin-typed',
+    }))).json();
+
+    // Not echoed back: the admin already knows it.
+    expect(body.password).toBeNull();
+    expect((await loginHandler(new Request(`${BASE}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'chosen@example.com', password: 'a-password-the-admin-typed' }),
+    }))).status).toBe(200);
   });
 
   it('is closed to anyone but an admin', async () => {
@@ -88,21 +116,20 @@ describe('adding a member by hand', () => {
   });
 
   it('does not reissue a password to somebody who already has one', async () => {
-    const first = await (await peopleHandler(call({ action: 'add', email: 'dup@example.com', name: 'One', role: 'member' }))).json();
-    const second = await (await peopleHandler(call({ action: 'add', email: 'dup@example.com', name: 'One', role: 'member' }))).json();
-    expect(first.password).toBeTruthy();
+    await peopleHandler(call({ action: 'add', email: 'dup@example.com', name: 'One', role: 'member', password: 'the-one-they-are-using' }));
+    const second = await (await peopleHandler(call({ action: 'add', email: 'dup@example.com', name: 'One', role: 'member', password: 'a-different-one' }))).json();
     // Silently replacing a password the member is already using would lock them out.
     expect(second.password).toBeNull();
     expect((await loginHandler(new Request(`${BASE}/api/auth/login`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ email: 'dup@example.com', password: first.password }),
+      body: JSON.stringify({ email: 'dup@example.com', password: 'the-one-they-are-using' }),
     }))).status).toBe(200);
   });
 
   it('shows on the list whether each person can actually sign in', async () => {
     await store.members.upsertManual({ email: 'nopass@example.com', firstName: null, lastName: null, status: 'active', homeVenueId: VENUE_ID });
-    await peopleHandler(call({ action: 'add', email: 'haspass@example.com', name: 'Has Pass', role: 'member' }));
+    await peopleHandler(call({ action: 'add', email: 'haspass@example.com', name: 'Has Pass', role: 'member', password: 'issued-by-the-admin' }));
 
     const body = await (await peopleHandler(get())).json();
     const byEmail = new Map(body.people.map((p: any) => [p.email, p]));
@@ -168,7 +195,7 @@ describe('where a manual member sits against Hapana', () => {
 
   it('stops working the moment it is paused or removed', async () => {
     const email = 'temp@example.com';
-    const created = await (await peopleHandler(call({ action: 'add', email, name: 'Temp One', role: 'member' }))).json();
+    await peopleHandler(call({ action: 'add', email, name: 'Temp One', role: 'member', password: 'issued-by-the-admin' }));
     const membership = createUnavailableMembership('no key');
 
     await peopleHandler(call({ email, status: 'paused' }, 'PATCH'));
@@ -183,14 +210,13 @@ describe('where a manual member sits against Hapana', () => {
     // The sign-in goes with them. The old screens removed a membership and
     // left the password standing, which read as "removed" and was not.
     expect(await store.credentials.get(email)).toBeNull();
-    expect(created.password).toBeTruthy();
   });
 
   it('a sync never clobbers or deletes a manual entry', async () => {
     await store.members.upsertManual({ email: 'manual@example.com', firstName: 'Mo', lastName: null, status: 'active', homeVenueId: VENUE_ID });
 
     await store.members.upsertMany([
-      { memberId: ACTIVE_MEMBER.memberId, email: ACTIVE_MEMBER.email, firstName: 'Ada', lastName: 'Active', status: 'active', homeVenueId: VENUE_ID, syncedAt: new Date().toISOString(), source: 'hapana' },
+      { memberId: ACTIVE_MEMBER.memberId, email: ACTIVE_MEMBER.email, firstName: 'Ada', lastName: 'Active', status: 'active', homeVenueId: VENUE_ID, syncedAt: new Date().toISOString(), membershipPackage: null, source: 'hapana' },
     ]);
 
     const manual = await store.members.listManual();
@@ -200,7 +226,7 @@ describe('where a manual member sits against Hapana', () => {
 
   it('removeManual refuses to touch a synced record', async () => {
     await store.members.upsertMany([
-      { memberId: 'hapana-1', email: 'synced@example.com', firstName: null, lastName: null, status: 'active', homeVenueId: VENUE_ID, syncedAt: new Date().toISOString(), source: 'hapana' },
+      { memberId: 'hapana-1', email: 'synced@example.com', firstName: null, lastName: null, status: 'active', homeVenueId: VENUE_ID, syncedAt: new Date().toISOString(), membershipPackage: null, source: 'hapana' },
     ]);
     expect(await store.members.removeManual('hapana-1')).toBe(false);
     expect(await store.members.get('hapana-1')).not.toBeNull();

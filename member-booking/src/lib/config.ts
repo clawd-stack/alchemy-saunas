@@ -39,6 +39,15 @@ export interface AppConfig {
   supportEmail: string;
   /** Where the venue is. Shown on the session a member is about to book. */
   venueAddress: string;
+  /**
+   * Which Hapana membership packages reach this channel, by package name.
+   *
+   * Empty means every package is open, which is what the channel did before
+   * packages were recorded at all. Once there is an entry, a package that is
+   * not in the map is closed: an unknown package letting somebody in is an
+   * unauthorised entry, and one keeping somebody out is a support call.
+   */
+  packageAccess: Record<string, boolean>;
 }
 
 export const CONFIG_DEFAULTS: AppConfig = {
@@ -71,6 +80,7 @@ export const CONFIG_DEFAULTS: AppConfig = {
   // kind of thing that changes without anybody thinking to open a PR.
   supportEmail: 'support@alchemysaunas.com.au',
   venueAddress: '34 Duke St, East Fremantle',
+  packageAccess: {},
 };
 
 const KEY_MAP: Record<string, keyof AppConfig> = {
@@ -89,6 +99,7 @@ const KEY_MAP: Record<string, keyof AppConfig> = {
   booking_backend: 'bookingBackend',
   support_email: 'supportEmail',
   venue_address: 'venueAddress',
+  package_access: 'packageAccess',
 };
 
 export const CONFIG_KEYS = Object.keys(KEY_MAP);
@@ -165,6 +176,16 @@ export function validate(config: AppConfig): ValidationIssue[] {
   // enough to argue with a valid address it has not heard of.
   if (typeof config.supportEmail !== 'string' || (config.supportEmail !== '' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(config.supportEmail))) {
     issues.push({ key: 'support_email', message: 'Support email must be an email address, or blank to hide the link.' });
+  }
+  const packages = config.packageAccess;
+  if (!packages || typeof packages !== 'object' || Array.isArray(packages)) {
+    issues.push({ key: 'package_access', message: 'Package access must be a map of package name to true or false.' });
+  } else {
+    for (const [name, allowed] of Object.entries(packages)) {
+      if (typeof allowed !== 'boolean') {
+        issues.push({ key: 'package_access', message: `Package "${name}" must be set to true or false.` });
+      }
+    }
   }
   if (typeof config.venueAddress !== 'string' || config.venueAddress.length > 200) {
     issues.push({ key: 'venue_address', message: 'Venue address must be text, or blank to hide it.' });

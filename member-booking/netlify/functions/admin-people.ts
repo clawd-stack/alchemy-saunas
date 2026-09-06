@@ -74,7 +74,7 @@ export default async (request: Request): Promise<Response> => {
     if (request.method === 'POST') {
       const body = await readJson<{
         action?: unknown; email?: unknown; name?: unknown; role?: unknown; password?: unknown;
-        rows?: unknown; types?: unknown; deactivateMissing?: unknown; apply?: unknown;
+        rows?: unknown; deactivateMissing?: unknown; apply?: unknown;
       }>(request);
       const action = String(body.action ?? 'add');
 
@@ -137,7 +137,18 @@ export default async (request: Request): Promise<Response> => {
       // already using locks them out, and "Add" is the one button most likely
       // to be pressed twice. Use New password to deliberately replace one.
       const held = await context.store.credentials.get(email);
-      const password = held ? null : supplied || generatePassword();
+
+      // A member added here is in exactly the position of a member who arrived
+      // by import: known to the venue, with no way in yet. So they are left to
+      // set their own password at first sign-in, like everybody else. Issuing
+      // one took that away, because an address that already has a password
+      // cannot be claimed, and the venue was then holding a password it had to
+      // pass on by hand.
+      //
+      // Staff are the other way round. They cannot claim, by design, so a
+      // staff account with no password is an account nobody can ever use.
+      const issue = STAFF_ROLES.has(role) || Boolean(supplied);
+      const password = held || !issue ? null : supplied || generatePassword();
       if (password) {
         await context.store.credentials.setPassword({
           email,
@@ -155,12 +166,18 @@ export default async (request: Request): Promise<Response> => {
           ? `${email} is now ${label(role)}. They already had a password, so it is unchanged.`
           : supplied
             ? `${email} added as ${label(role)}, with the password you supplied.`
-            : `${email} added as ${label(role)}. Send them this password, then close this: it cannot be shown again.`,
+            : password
+              ? `${email} added as ${label(role)}. Send them this password, then close this: it cannot be shown again.`
+              : `${email} added as ${label(role)}. They set their own password the first time they sign in: `
+                + 'on the booking page, "First time here? Set your password".',
       });
     }
 
     if (request.method === 'PATCH') {
-      const body = await readJson<{ email?: unknown; role?: unknown; signIn?: unknown; status?: unknown }>(request);
+      const body = await readJson<{
+        email?: unknown; role?: unknown; signIn?: unknown; status?: unknown;
+      }>(request);
+
       const email = normaliseEmail(body.email);
       const { staff, members, credentials } = await load();
       const all = merge(staff, members, credentials);
@@ -293,6 +310,7 @@ function merge(staff: StaffRecord[], members: MemberRecord[], credentials: { ema
         status: role === 'member' ? (m?.status ?? null) : null,
         signIn: !c ? 'none' : !c.active ? 'suspended' : c.mustChange ? 'issued' : 'active',
         lastLoginAt: c?.lastLoginAt ?? null,
+        membershipPackage: m?.membershipPackage ?? null,
         memberId: m?.memberId ?? null,
         staffId: s?.staffId ?? null,
       };
@@ -326,7 +344,7 @@ async function importMembers(
   context: Awaited<ReturnType<typeof buildContext>>,
   request: Request,
   caller: { email: string },
-  body: { rows?: unknown; types?: unknown; deactivateMissing?: unknown; apply?: unknown },
+  body: { rows?: unknown; deactivateMissing?: unknown; apply?: unknown },
   loaded: { staff: StaffRecord[]; members: MemberRecord[] },
 ): Promise<Response> {
   const rows = Array.isArray(body.rows) ? body.rows : null;
@@ -339,11 +357,6 @@ async function importMembers(
     );
   }
 
-  // null means every type in the file. An empty array means none, which is a
-  // real answer (somebody unticked them all) and must not be read as "all".
-  const wanted = Array.isArray(body.types)
-    ? new Set(body.types.map((type) => String(type).trim().toLowerCase()))
-    : null;
   const deactivateMissing = body.deactivateMissing === true;
   const apply = body.apply === true;
 
@@ -355,10 +368,12 @@ async function importMembers(
   const update: Array<{ email: string; name: string }> = [];
   const skippedStaff: string[] = [];
   const seen = new Set<string>();
-  const toWrite: Array<{ email: string; firstName: string | null; lastName: string | null; status: MembershipStatus }> = [];
+  const toWrite: Array<{
+    email: string; firstName: string | null; lastName: string | null;
+    status: MembershipStatus; membershipPackage: string | null;
+  }> = [];
   let unchanged = 0;
   let invalid = 0;
-  let excludedByType = 0;
   let duplicates = 0;
 
   for (const raw of rows) {
@@ -368,9 +383,12 @@ async function importMembers(
     // address is both the identity and the only way to reach them.
     if (!email || !email.includes('@')) { invalid += 1; continue; }
 
+    // The package is recorded, never used to leave somebody out. Everybody in
+    // the export is a member; which packages can book is a separate decision,
+    // made once on the People screen rather than re-made on every import, and
+    // applied at sign-in where it can be changed without re-importing anybody.
     const type = String(row.membershipType ?? '').trim();
     if (type) types.set(type, (types.get(type) ?? 0) + 1);
-    if (wanted && !wanted.has(type.toLowerCase())) { excludedByType += 1; continue; }
 
     if (seen.has(email)) { duplicates += 1; continue; }
     seen.add(email);
@@ -390,16 +408,20 @@ async function importMembers(
       : mapMembershipStatus(row.status);
 
     const label = [firstName, lastName].filter(Boolean).join(' ') || email;
+    const membershipPackage = type || null;
     const held = existing.get(email);
     if (!held) {
       add.push({ email, name: label });
-    } else if (held.status !== status || held.firstName !== firstName || held.lastName !== lastName) {
+    } else if (
+      held.status !== status || held.firstName !== firstName || held.lastName !== lastName
+      || held.membershipPackage !== membershipPackage
+    ) {
       update.push({ email, name: label });
     } else {
       unchanged += 1;
       continue;
     }
-    toWrite.push({ email, firstName, lastName, status });
+    toWrite.push({ email, firstName, lastName, status, membershipPackage });
   }
 
   // In the app as a member, absent from the file. Offered rather than assumed:
@@ -425,6 +447,7 @@ async function importMembers(
           lastName: held.lastName,
           status: 'cancelled',
           homeVenueId: held.homeVenueId,
+          membershipPackage: held.membershipPackage,
         });
       }
     }
@@ -440,7 +463,7 @@ async function importMembers(
     types: [...types.entries()]
       .map(([type, count]) => ({ type, count }))
       .sort((a, b) => b.count - a.count || a.type.localeCompare(b.type)),
-    plan: { add, update, unchanged, excludedByType, duplicates, invalid, skippedStaff, missing },
+    plan: { add, update, unchanged, duplicates, invalid, skippedStaff, missing },
     message: apply
       ? `${add.length} added, ${update.length} updated, ${unchanged} already current` +
         (deactivateMissing && missing.length ? `, ${missing.length} cancelled.` : '.')

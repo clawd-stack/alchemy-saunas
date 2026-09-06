@@ -470,7 +470,14 @@ tr:last-child td { border-bottom: 0; }
   color: var(--ink); margin: 40px 0 18px;
   padding-top: 28px; border-top: 1px solid var(--line-2);
 }
-.section-heading:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+/* Flush only where a heading opens the page itself: directly in the page body,
+   or in the card that fills it. A heading that opens a form or a panel further
+   down is still starting a section, so it keeps its rule and its air. Without
+   that distinction Add someone and Import ran straight on from the table
+   above them. */
+#page-body > .section-heading:first-child,
+#page-body > * > .section-heading:first-child,
+#page-body .card > .section-heading:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
 input[type='search'] { max-width: 380px; }
 
 /* A button that reads as a link: an action, not a destination, so it stays a

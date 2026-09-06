@@ -148,6 +148,8 @@ export interface MemberRecord {
   lastName: string | null;
   status: MembershipStatus;
   homeVenueId: string | null;
+  /** The Hapana package this member holds. Null for anybody added by hand. */
+  membershipPackage: string | null;
   syncedAt: string;
   /** Where this record came from. Manual entries are never overwritten by a sync. */
   source: 'hapana' | 'manual';
@@ -279,7 +281,10 @@ export interface Store {
       lastName: string | null;
       status: MembershipStatus;
       homeVenueId: string | null;
+      membershipPackage?: string | null;
     }): Promise<MemberRecord>;
+    /** Every package held by somebody, with how many hold it. For the toggles. */
+    listPackages(): Promise<Array<{ name: string; members: number }>>;
     listManual(): Promise<MemberRecord[]>;
     /**
      * When a synced member was last written, which is the high-water mark the

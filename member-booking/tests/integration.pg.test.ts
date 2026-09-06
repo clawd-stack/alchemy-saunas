@@ -353,6 +353,7 @@ suite('pg store implementation', () => {
         status: 'active',
         homeVenueId: VENUE_ID,
         syncedAt: new Date().toISOString(),
+      membershipPackage: null,
       source: 'hapana' as const,
       },
     ]);

@@ -5,6 +5,9 @@ import { createMockHapana } from '../src/adapters/hapana/mock.ts';
 import { issueStaffSession } from '../src/lib/auth.ts';
 import { STAFF_COOKIE } from '../src/lib/http.ts';
 import { ACTIVE_MEMBER, VENUE_ID } from './helpers.ts';
+import { readFileSync } from 'node:fs';
+// @ts-expect-error plain browser module, no types, deliberately dependency-free
+import { parseExport } from '../web/admin/export-reader.js';
 
 import peopleHandler from '../netlify/functions/admin-people.ts';
 
@@ -92,19 +95,24 @@ describe('POST /api/admin/people { action: import }', () => {
     ]);
   });
 
-  it('imports only the types asked for', async () => {
-    const { body } = await importRows(ROWS, { types: ['unlimited'], apply: true });
-    expect(body.plan.add.map((p: any) => p.email)).toEqual(['ada@example.com', 'ben@example.com']);
-    expect(body.plan.excludedByType).toBe(1);
-    expect((await members()).has('cas@example.com')).toBe(false);
+  it('imports everybody in the file, whatever package they hold', async () => {
+    // The package decides whether somebody can book, and that decision is made
+    // once in Settings and applied at sign-in. Leaving people out of the
+    // import instead would freeze it into who happened to be imported, and
+    // changing your mind later would mean importing again.
+    const { body } = await importRows(ROWS, { apply: true });
+    expect(body.plan.add.map((p: any) => p.email))
+      .toEqual(['ada@example.com', 'ben@example.com', 'cas@example.com']);
+    expect((await members()).has('cas@example.com')).toBe(true);
   });
 
-  it('reads an empty type list as none, not as all', async () => {
-    // Somebody unticking every type is giving a real answer. Reading it as
-    // "all of them" would import the whole file at the moment they said not to.
-    const { body } = await importRows(ROWS, { types: [], apply: true });
-    expect(body.plan.add).toHaveLength(0);
-    expect((await members()).size).toBe(1);
+  it('counts the packages it saw without acting on them', async () => {
+    const { body } = await importRows(ROWS);
+    expect(body.types).toEqual([
+      { type: 'Unlimited', count: 2 },
+      { type: 'Casual pack', count: 1 },
+    ]);
+    expect(body.plan.add).toHaveLength(3);
   });
 
   it('never lets a spreadsheet demote a member of staff', async () => {
@@ -138,7 +146,7 @@ describe('POST /api/admin/people { action: import }', () => {
     await importRows(ROWS, { apply: true });
     const { body } = await importRows(
       [{ email: 'ada@example.com', name: 'Ada Active', membershipType: 'Unlimited', status: 'paused' }],
-      { types: null, apply: true },
+      { apply: true },
     );
     expect(body.plan.update.map((p: any) => p.email)).toEqual(['ada@example.com']);
     expect((await members()).get('ada@example.com').status).toBe('paused');
@@ -187,5 +195,38 @@ describe('POST /api/admin/people { action: import }', () => {
     }));
     expect(response.status).toBe(403);
     expect((await members()).size).toBe(1);
+  });
+});
+
+describe('the test members in docs/test-members.csv', () => {
+  /**
+   * docs/testing-first-login.md tells somebody to import this file and then
+   * claim those addresses. A doc that describes a file it does not read goes
+   * stale silently, so the file is read here and put through the same reader
+   * and the same handler the screen uses.
+   */
+  it('parse and import exactly as the doc says they do', async () => {
+    // Somebody already in the app, standing in for the 405 who are not in a
+    // four-row test file.
+    await store.members.upsertManual({
+      email: 'real@example.com', firstName: 'Rea', lastName: 'Lmember',
+      status: 'active', homeVenueId: VENUE_ID, membershipPackage: 'Membership | East Fremantle',
+    });
+
+    const { rows } = parseExport(readFileSync(new URL('../docs/test-members.csv', import.meta.url), 'utf8'));
+    const { body } = await importRows(rows, { apply: true });
+
+    expect(body.plan.add).toHaveLength(4);
+    // The thing that would ruin a real venue's data if the doc were wrong. The
+    // real member is offered for deactivation, and with the box left off, is
+    // not deactivated.
+    expect(body.plan.missing.map((m: any) => m.email)).toEqual(['real@example.com']);
+
+    const held = await members();
+    expect(held.get('tess.trial@alchemy.test')?.status).toBe('active');
+    expect(held.get('cass.cancelled@alchemy.test')?.status).toBe('cancelled');
+    expect(held.get('real@example.com')?.status).toBe('active');
+    // Every address unroutable, so no test can reach a real inbox.
+    for (const row of rows) expect(row.email).toMatch(/@alchemy\.test$/);
   });
 });

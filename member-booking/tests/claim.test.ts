@@ -3,6 +3,7 @@ import { overrideContext } from '../src/domain/context.ts';
 import { createMemoryStore, type MemoryStore } from '../src/store/memory.ts';
 import { createMockHapana } from '../src/adapters/hapana/mock.ts';
 import { hashPassword } from '../src/lib/password.ts';
+import { configKeyFor } from '../src/lib/config.ts';
 import { MEMBER_COOKIE } from '../src/lib/http.ts';
 import { ACTIVE_MEMBER, CANCELLED_MEMBER, PAUSED_MEMBER, VENUE_ID } from './helpers.ts';
 
@@ -63,6 +64,47 @@ describe('POST /api/auth/claim', () => {
     const response = await loginHandler(login(ACTIVE_MEMBER.email, GOOD_PASSWORD));
     expect(response.status).toBe(200);
     expect((await response.json()).mustChangePassword).toBe(false);
+  });
+
+  it('lets somebody who arrived by import claim, though Hapana has never heard of them', async () => {
+    // The case this was built for. The 405 members came from a CSV, not from a
+    // Hapana lookup, so the claim has to hold up when the live source answers
+    // "no such address" and the only evidence of membership is the row the
+    // import wrote.
+    await store.members.upsertManual({
+      email: 'imported@example.com',
+      firstName: 'Imogen',
+      lastName: 'Ported',
+      status: 'active',
+      homeVenueId: VENUE_ID,
+      membershipPackage: 'Membership | East Fremantle',
+    });
+
+    const response = await claimHandler(claim('imported@example.com'));
+    expect(response.status).toBe(200);
+    expect((await response.json()).name).toBe('Imogen Ported');
+    expect((await loginHandler(login('imported@example.com', GOOD_PASSWORD))).status).toBe(200);
+  });
+
+  it('refuses an imported member whose package has been switched off', async () => {
+    await store.members.upsertManual({
+      email: 'offpeak@example.com',
+      firstName: 'Otto',
+      lastName: 'Peak',
+      status: 'active',
+      homeVenueId: VENUE_ID,
+      membershipPackage: 'Off-Peak Membership | East Fremantle',
+    });
+    await store.config.set(
+      configKeyFor('packageAccess'),
+      { 'Off-Peak Membership | East Fremantle': false },
+      'admin@example.com',
+      null,
+    );
+
+    const response = await claimHandler(claim('offpeak@example.com'));
+    expect(response.status).toBe(403);
+    expect(await store.credentials.get('offpeak@example.com')).toBeNull();
   });
 
   it('refuses an address that is not a member', async () => {

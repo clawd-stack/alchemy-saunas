@@ -85,9 +85,23 @@ describe('one list', () => {
     expect(JSON.stringify(body)).not.toContain('passwordHash');
   });
 
+  it('carries the package each member holds, so the list can show it', async () => {
+    await store.members.upsertManual({
+      email: 'holder@example.com', firstName: 'Hol', lastName: 'Der', status: 'active',
+      homeVenueId: VENUE_ID, membershipPackage: 'Off-Peak Membership | East Fremantle',
+    });
+    // Somebody added by hand holds nothing, and the list has to say so rather
+    // than leave a gap that reads as a missing value.
+    await peopleHandler(call({ action: 'add', email: 'byhand@example.com', name: 'By Hand', role: 'member' }));
+
+    const people = await list();
+    expect(people.get('holder@example.com').membershipPackage).toBe('Off-Peak Membership | East Fremantle');
+    expect(people.get('byhand@example.com').membershipPackage).toBeNull();
+  });
+
   it('says whether each person can actually sign in', async () => {
     await store.members.upsertManual({ email: 'nopass@example.com', firstName: 'No', lastName: 'Pass', status: 'active', homeVenueId: VENUE_ID });
-    const added = await (await peopleHandler(call({ action: 'add', email: 'fresh@example.com', name: 'Fresh One', role: 'member' }))).json();
+    await peopleHandler(call({ action: 'add', email: 'fresh@example.com', name: 'Fresh One', role: 'member', password: 'issued-by-the-admin' }));
     await store.credentials.setPassword({ email: 'chosen@example.com', passwordHash: await hashPassword('a-chosen-password'), mustChange: false });
     await store.members.upsertManual({ email: 'chosen@example.com', firstName: 'Chose', lastName: 'N', status: 'active', homeVenueId: VENUE_ID });
 
@@ -95,7 +109,6 @@ describe('one list', () => {
     expect(people.get('nopass@example.com').signIn).toBe('none');
     expect(people.get('fresh@example.com').signIn).toBe('issued');
     expect(people.get('chosen@example.com').signIn).toBe('active');
-    expect(added.password).toBeTruthy();
   });
 
   it('is closed to anyone but an admin', async () => {
@@ -135,9 +148,9 @@ describe('roles', () => {
   });
 
   it('keeps the password across a role change', async () => {
-    const added = await (await peopleHandler(call({ action: 'add', email: 'keep@example.com', name: 'Keep Er', role: 'member' }))).json();
+    await peopleHandler(call({ action: 'add', email: 'keep@example.com', name: 'Keep Er', role: 'member', password: 'the-one-they-are-using' }));
     await peopleHandler(call({ email: 'keep@example.com', role: 'manager' }, 'PATCH'));
-    expect((await loginHandler(login('keep@example.com', added.password))).status).toBe(200);
+    expect((await loginHandler(login('keep@example.com', 'the-one-they-are-using'))).status).toBe(200);
   });
 
   it('refuses an unknown role', async () => {
@@ -173,13 +186,13 @@ describe('lockout guards', () => {
 
 describe('sign-in', () => {
   it('suspends and restores', async () => {
-    const added = await (await peopleHandler(call({ action: 'add', email: 'sus@example.com', name: 'Sus Pect', role: 'member' }))).json();
+    await peopleHandler(call({ action: 'add', email: 'sus@example.com', name: 'Sus Pect', role: 'member', password: 'issued-by-the-admin' }));
 
     await peopleHandler(call({ email: 'sus@example.com', signIn: false }, 'PATCH'));
-    expect((await loginHandler(login('sus@example.com', added.password))).status).toBe(401);
+    expect((await loginHandler(login('sus@example.com', 'issued-by-the-admin'))).status).toBe(401);
 
     await peopleHandler(call({ email: 'sus@example.com', signIn: true }, 'PATCH'));
-    expect((await loginHandler(login('sus@example.com', added.password))).status).toBe(200);
+    expect((await loginHandler(login('sus@example.com', 'issued-by-the-admin'))).status).toBe(200);
   });
 
   it('issues a new password, once, and the old one stops working', async () => {
