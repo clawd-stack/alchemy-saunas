@@ -39,7 +39,7 @@ export interface HapanaBookingResult {
 }
 
 /**
- * What a live probe of the API established. Written by scripts/probe-hapana.mjs
+ * What reading the API's documentation established. Recorded by hand
  * and pasted into docs/hapana-findings.md; the adapter reads only
  * canCreateBookings, via config, to choose Pattern A or Pattern B.
  */

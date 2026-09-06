@@ -58,7 +58,7 @@ export function createMockHapana(options: MockOptions = {}): MembershipSource & 
       guard();
       return members.find((m) => m.memberId === memberId) ?? null;
     },
-    async listMembers(): Promise<HapanaMember[]> {
+    async listMembers(_since?: Date): Promise<HapanaMember[]> {
       guard();
       return [...members];
     },

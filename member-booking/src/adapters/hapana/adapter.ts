@@ -1,7 +1,6 @@
 import { hapanaRequest, HapanaUnavailable } from './client.ts';
-import { mapBookingId, mapMember, mapSession, unwrapList, unwrapObject } from './mapping.ts';
+import { mapMember, mapSession, unwrapList, unwrapObject } from './mapping.ts';
 import type { HapanaBookingRequest, HapanaBookingResult, HapanaMember, HapanaSession } from './types.ts';
-import { env } from '../../lib/env.ts';
 
 /**
  * The Hapana adapter. Everything the rest of the build knows about Hapana is
@@ -13,13 +12,21 @@ export interface MembershipSource {
   /** Live membership lookup. Returns null when the address is not a member. */
   findMemberByEmail(email: string): Promise<HapanaMember | null>;
   getMember(memberId: string): Promise<HapanaMember | null>;
-  /** Full list, used by the Pattern B scheduled sync. */
-  listMembers(): Promise<HapanaMember[]>;
+  /**
+   * Everything changed on or after `since`, or the whole membership when it is
+   * omitted. Used by the scheduled sync.
+   */
+  listMembers(since?: Date): Promise<HapanaMember[]>;
   /** Sessions in a window, with public-channel occupancy where Hapana reports it. */
   listSessions(venueId: string, from: Date, to: Date): Promise<HapanaSession[]>;
   /** Public-channel occupancy for one session, or null when it cannot be established. */
   publicBookedFor(venueId: string, externalSessionId: string): Promise<number | null>;
-  /** Pattern A only. Throws NotSupported when the API is read-only. */
+  /**
+   * Always throws against Hapana: the published API has no booking-create
+   * endpoint, and this channel owns its own inventory. Kept on the interface
+   * because a future backend may have one, and because the mock exercises the
+   * caller's release-the-local-spot path.
+   */
   createBooking(request: HapanaBookingRequest): Promise<HapanaBookingResult>;
   cancelBooking(externalBookingId: string): Promise<void>;
 }
@@ -32,12 +39,43 @@ export class NotSupported extends Error {
 }
 
 /**
- * Endpoint paths are configurable for the same reason the auth style is: the
- * live endpoint list could not be read from the build environment. Defaults are
- * the most likely shapes; the probe script prints the ones that answered.
+ * The paths, read from Hapana's documentation on 2026-09-06. They were
+ * configurable through HAPANA_PATH_* while they were guesses; they are not
+ * guesses any more, and an override that lets somebody point this at a path
+ * that does not exist is worth less than the line it takes to read.
+ *
+ * Hapana's vocabulary is "client" where ours is "member". The mapping between
+ * the two lives in mapping.ts and nowhere else.
  */
-function path(name: string, fallback: string): string {
-  return process.env[`HAPANA_PATH_${name}`] ?? fallback;
+const CLIENTS = 'v2/customer/client';
+const SESSIONS = 'v2/site/sessions';
+const SESSION_DETAIL = 'v2/site/sessionDetail';
+
+/** GET /v2/site/sessions refuses a range wider than this. */
+const SESSION_WINDOW_DAYS = 15;
+
+/** Hapana wants Y-m-d H:i:s for lastModifiedDate, and YYYY-MM-DD for session dates. */
+function asDateTime(value: Date): string {
+  return value.toISOString().slice(0, 19).replace('T', ' ');
+}
+
+function asDate(value: Date): string {
+  return value.toISOString().slice(0, 10);
+}
+
+/** The 15 day windows a range has to be cut into. */
+export function sessionWindows(from: Date, to: Date): Array<{ from: Date; to: Date }> {
+  const windows: Array<{ from: Date; to: Date }> = [];
+  const span = SESSION_WINDOW_DAYS * 86_400_000;
+  let start = from;
+  // Bounded: a booking window is 14 days by default, and the guard stops a bad
+  // range from spinning inside a scheduled function.
+  while (start < to && windows.length < 32) {
+    const end = new Date(Math.min(start.getTime() + span, to.getTime()));
+    windows.push({ from: start, to: end });
+    start = new Date(end.getTime() + 1);
+  }
+  return windows;
 }
 
 export function createHapanaAdapter(): MembershipSource {
@@ -45,62 +83,62 @@ export function createHapanaAdapter(): MembershipSource {
     name: 'hapana',
 
     async findMemberByEmail(email: string): Promise<HapanaMember | null> {
-      const body = await hapanaRequest(path('MEMBERS', 'v1/members'), {
-        query: { email, siteID: env.hapanaSiteId || undefined, limit: 5 },
-      });
-      const rows = unwrapList(body);
-      for (const row of rows) {
+      // The endpoint filters by email itself, so this is one call and no
+      // client-side scanning. The equality check below still stands, because a
+      // filter we did not write is not a filter we should trust with sign-in.
+      const body = await hapanaRequest(CLIENTS, { query: { email } });
+      for (const row of unwrapList(body)) {
         const member = mapMember(row);
         if (member && member.email === email.toLowerCase()) return member;
       }
       return null;
     },
 
-    async getMember(memberId: string): Promise<HapanaMember | null> {
-      const body = await hapanaRequest(`${path('MEMBERS', 'v1/members')}/${encodeURIComponent(memberId)}`);
-      return mapMember(unwrapObject(body));
+    async getMember(): Promise<HapanaMember | null> {
+      // There is no lookup by client id in the published API. Callers that
+      // hold an id resolve the address first and come back through
+      // findMemberByEmail; see verifyMemberById.
+      throw new NotSupported('lookup by member id');
     },
 
-    async listMembers(): Promise<HapanaMember[]> {
+    async listMembers(since?: Date): Promise<HapanaMember[]> {
+      // No pagination parameters exist on this endpoint at all: it returns
+      // everything. The page/limit loop this replaces would have been ignored
+      // and the loop would have read the same first response fifty times.
+      //
+      // lastModifiedDate returns everything changed on or after that moment,
+      // which is what makes a scheduled sync cheap rather than a full pull.
+      const body = await hapanaRequest(CLIENTS, {
+        query: since ? { lastModifiedDate: asDateTime(since) } : {},
+        // A full membership is a bigger response than a single lookup.
+        timeoutMs: 20_000,
+      });
       const members: HapanaMember[] = [];
-      let page = 1;
-      // Bounded so a paging bug cannot spin forever inside a scheduled function.
-      while (page <= 50) {
-        const body = await hapanaRequest(path('MEMBERS', 'v1/members'), {
-          query: { siteID: env.hapanaSiteId || undefined, page, limit: 200 },
-        });
-        const rows = unwrapList(body);
-        if (rows.length === 0) break;
-        for (const row of rows) {
-          const member = mapMember(row);
-          if (member) members.push(member);
-        }
-        if (rows.length < 200) break;
-        page += 1;
+      for (const row of unwrapList(body)) {
+        const member = mapMember(row);
+        if (member) members.push(member);
       }
       return members;
     },
 
     async listSessions(venueId: string, from: Date, to: Date): Promise<HapanaSession[]> {
-      const body = await hapanaRequest(path('SESSIONS', 'v1/sessions'), {
-        query: {
-          siteID: env.hapanaSiteId || undefined,
-          startDate: from.toISOString(),
-          endDate: to.toISOString(),
-          limit: 500,
-        },
-      });
+      // Dates, not timestamps, and never a range wider than 15 days.
       const sessions: HapanaSession[] = [];
-      for (const row of unwrapList(body)) {
-        const session = mapSession(row, venueId);
-        if (session) sessions.push(session);
+      for (const window of sessionWindows(from, to)) {
+        const body = await hapanaRequest(SESSIONS, {
+          query: { startDate: asDate(window.from), endDate: asDate(window.to) },
+        });
+        for (const row of unwrapList(body)) {
+          const session = mapSession(row, venueId);
+          if (session) sessions.push(session);
+        }
       }
       return sessions;
     },
 
     async publicBookedFor(venueId: string, externalSessionId: string): Promise<number | null> {
       try {
-        const body = await hapanaRequest(`${path('SESSIONS', 'v1/sessions')}/${encodeURIComponent(externalSessionId)}`);
+        const body = await hapanaRequest(SESSION_DETAIL, { query: { sessionID: externalSessionId } });
         const session = mapSession(unwrapObject(body), venueId);
         return session?.booked ?? null;
       } catch (error) {
@@ -109,27 +147,17 @@ export function createHapanaAdapter(): MembershipSource {
       }
     },
 
-    async createBooking(request: HapanaBookingRequest): Promise<HapanaBookingResult> {
-      const body = await hapanaRequest(path('BOOKINGS', 'v1/bookings'), {
-        method: 'POST',
-        body: {
-          sessionID: request.externalSessionId,
-          memberID: request.memberId,
-          spots: request.spots,
-          reference: request.reference,
-          siteID: env.hapanaSiteId || undefined,
-          classID: env.hapanaMemberClassId || undefined,
-        },
-      });
-      const externalBookingId = mapBookingId(unwrapObject(body));
-      if (!externalBookingId) throw new Error('Hapana accepted the booking but returned no booking id');
-      return { externalBookingId };
+    async createBooking(): Promise<HapanaBookingResult> {
+      // Not a configuration this deployment happens to lack. The published
+      // API has 18 endpoints and none of them creates a booking, so there is
+      // nothing to switch on. This channel owns its own inventory, which is
+      // the only arrangement available and, as it happens, the one that makes
+      // overselling the room impossible.
+      throw new NotSupported('creating a booking');
     },
 
-    async cancelBooking(externalBookingId: string): Promise<void> {
-      await hapanaRequest(`${path('BOOKINGS', 'v1/bookings')}/${encodeURIComponent(externalBookingId)}`, {
-        method: 'DELETE',
-      });
+    async cancelBooking(): Promise<void> {
+      throw new NotSupported('cancelling a booking');
     },
   };
 }
@@ -166,7 +194,7 @@ export function createUnavailableMembership(reason: string): MembershipSource {
     async getMember(): Promise<HapanaMember | null> {
       return refuse();
     },
-    async listMembers(): Promise<HapanaMember[]> {
+    async listMembers(_since?: Date): Promise<HapanaMember[]> {
       return refuse();
     },
     async listSessions(): Promise<HapanaSession[]> {

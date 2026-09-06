@@ -42,13 +42,6 @@ export const env = {
   get hapanaSiteId(): string {
     return optional('HAPANA_SITE_ID');
   },
-  get hapanaCompanyId(): string {
-    return optional('HAPANA_COMPANY_ID');
-  },
-  /** Hidden member class on the East Fremantle room, Pattern A only. */
-  get hapanaMemberClassId(): string {
-    return optional('HAPANA_MEMBER_CLASS_ID');
-  },
   get emailProvider(): 'postmark' | 'resend' | 'smtp' | 'console' {
     const value = optional('EMAIL_PROVIDER', 'console');
     if (value === 'postmark' || value === 'resend' || value === 'smtp' || value === 'console') return value;

@@ -7,7 +7,7 @@ import type { HapanaMember, HapanaSession } from './types.ts';
  * Hapana's API documentation is gated behind a login and could not be read from
  * the build environment, so the field names below are candidates rather than
  * confirmed. Each lookup tries several spellings and the first hit wins. Once
- * scripts/probe-hapana.mjs has dumped a real payload, replace the candidate
+ * one live call has returned a real payload, replace the candidate
  * lists with the real names: that is a small, contained edit and nothing
  * outside this file needs to move.
  */

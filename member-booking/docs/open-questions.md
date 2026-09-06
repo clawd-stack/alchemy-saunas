@@ -49,12 +49,15 @@ which are the two things most likely to be asked about later.
 
 ## Still open
 
-### Hapana write capability
-**Owner: whoever runs the probe.** Does not block go-live: Pattern B ships by
-default and needs read access only. Run
-`HAPANA_API_KEY=… node scripts/probe-hapana.mjs` from a machine that can reach
-Hapana and paste the result into `docs/hapana-findings.md`. See that file for
-why it could not be answered from the build environment.
+### Hapana write capability: answered, 2026-09-06
+**Closed.** There is no booking-create endpoint in the published API, so
+Pattern A is not deferred, it is unavailable. Pattern B's ringfenced allocation
+is permanent. Read from Hapana's own documentation; the endpoint list and auth
+scheme are in `docs/hapana-findings.md`.
+
+Two smaller items took its place, each one live call: the membership status
+field names (response schemas are undocumented) and the East Fremantle
+`siteID` from `GET /v2/site`. Neither blocks anything.
 
 ### Deployment settings
 Not decisions, just things that must exist before members are pointed at it,
