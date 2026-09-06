@@ -137,7 +137,18 @@ export default async (request: Request): Promise<Response> => {
       // already using locks them out, and "Add" is the one button most likely
       // to be pressed twice. Use New password to deliberately replace one.
       const held = await context.store.credentials.get(email);
-      const password = held ? null : supplied || generatePassword();
+
+      // A member added here is in exactly the position of a member who arrived
+      // by import: known to the venue, with no way in yet. So they are left to
+      // set their own password at first sign-in, like everybody else. Issuing
+      // one took that away, because an address that already has a password
+      // cannot be claimed, and the venue was then holding a password it had to
+      // pass on by hand.
+      //
+      // Staff are the other way round. They cannot claim, by design, so a
+      // staff account with no password is an account nobody can ever use.
+      const issue = STAFF_ROLES.has(role) || Boolean(supplied);
+      const password = held || !issue ? null : supplied || generatePassword();
       if (password) {
         await context.store.credentials.setPassword({
           email,
@@ -155,7 +166,10 @@ export default async (request: Request): Promise<Response> => {
           ? `${email} is now ${label(role)}. They already had a password, so it is unchanged.`
           : supplied
             ? `${email} added as ${label(role)}, with the password you supplied.`
-            : `${email} added as ${label(role)}. Send them this password, then close this: it cannot be shown again.`,
+            : password
+              ? `${email} added as ${label(role)}. Send them this password, then close this: it cannot be shown again.`
+              : `${email} added as ${label(role)}. They set their own password the first time they sign in: `
+                + 'on the booking page, "First time here? Set your password".',
       });
     }
 
@@ -296,6 +310,7 @@ function merge(staff: StaffRecord[], members: MemberRecord[], credentials: { ema
         status: role === 'member' ? (m?.status ?? null) : null,
         signIn: !c ? 'none' : !c.active ? 'suspended' : c.mustChange ? 'issued' : 'active',
         lastLoginAt: c?.lastLoginAt ?? null,
+        membershipPackage: m?.membershipPackage ?? null,
         memberId: m?.memberId ?? null,
         staffId: s?.staffId ?? null,
       };

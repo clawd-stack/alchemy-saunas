@@ -7,16 +7,21 @@ They use `@alchemy.test` addresses. `.test` is reserved by the RFCs and can
 never be a real domain, so nothing here can reach a real person's inbox and
 nothing can collide with a real member.
 
-## Why the "Add someone" button will not do
+## Adding by hand works too
 
-Adding somebody from People always issues them a password, on purpose: the
-button exists so the venue can hand an address to a person there and then. An
-address that already has a password cannot be claimed, which is the guard the
-whole flow rests on, so an added account can never exercise the claim.
+"Add someone" with the role left on Member creates the membership and nothing
+else: no password, so they claim one like anybody else. That is the quickest
+way to make a single test account.
 
-The import is the other half of that. It never creates a credential, so an
-imported member is exactly what a real member is on the day the channel opens:
-known to the venue, with no way in yet. That is what to test against.
+Importing is worth doing anyway, because it is what actually happened to the
+405, and because it is the only way to get a package onto the row. Neither the
+import nor a hand-added member creates a credential, and an address that
+already has a password cannot be claimed, which is the guard the whole flow
+rests on.
+
+Staff are the exception, on purpose: the claim refuses a staff address, so
+adding somebody as Door, Manager or Admin still issues a password and shows it
+once. A staff account is not a way to test this.
 
 ## Importing them
 

@@ -28,7 +28,10 @@ const ROLES = [
 ];
 
 const SIGN_IN = {
-  none: ['bad', 'No password'],
+  // Quiet, not red. For a member this is the ordinary state between being
+  // imported and first signing in, which is where most of the list sits: a
+  // warning on four hundred rows is a warning about nothing.
+  none: ['quiet', 'Not set yet'],
   issued: ['warn', 'Issued'],
   active: ['good', 'Active'],
   suspended: ['quiet', 'Suspended'],
@@ -41,11 +44,6 @@ export async function renderPeople(host, { messages, reload }) {
     const members = data.people.filter((person) => person.role === 'member');
 
     return [
-      data.hapanaConfigured ? null : el('div', {
-        class: 'notice notice--warn',
-        text: 'No Hapana key set. This list is the whole membership the channel knows.',
-      }),
-
       el('h3', { class: 'section-heading', text: 'Staff' }),
       staff.length
         ? table(['Person', 'Role', 'Sign-in', ''], staff.map((person) => row(person, { messages, reload })))
@@ -90,7 +88,10 @@ function membersSection(members, { messages, reload }) {
 
     host.innerHTML = '';
     if (shown.length) {
-      host.append(table(['Person', 'Role', 'Sign-in', ''], shown.map((person) => row(person, { messages, reload }))));
+      host.append(table(
+        ['Person', 'Package', 'Role', 'Sign-in', ''],
+        shown.map((person) => row(person, { messages, reload, showPackage: true })),
+      ));
     }
   }
 
@@ -103,7 +104,7 @@ function membersSection(members, { messages, reload }) {
   ];
 }
 
-function row(person, { messages, reload }) {
+function row(person, { messages, reload, showPackage = false }) {
   const [tone, text] = SIGN_IN[person.signIn] ?? SIGN_IN.none;
 
   const roleSelect = el('select', {
@@ -129,6 +130,15 @@ function row(person, { messages, reload }) {
       el('div', { class: 'item__title', text: person.name }),
       el('div', { class: 'item__meta', text: person.email }),
     ]),
+    // What they hold in Hapana, and so which of the switches under Settings
+    // decides whether they can book. Blank for somebody added by hand, and for
+    // anybody imported before packages were recorded.
+    showPackage
+      ? el('td', {}, [el('span', {
+          class: person.membershipPackage ? 'item__meta' : 'muted',
+          text: person.membershipPackage ?? 'None',
+        })])
+      : null,
     el('td', {}, [
       roleSelect,
       // Only when it is not the obvious thing. A row that says "Member" and
@@ -205,25 +215,42 @@ function actions(person, { messages, reload }) {
 
 /**
  * One form. Role is picked here rather than implied by which of three lists
- * the admin happened to open, and the password is issued in the same step,
- * because doing it in two is how half a person gets created.
+ * the admin happened to open.
+ *
+ * A member added here sets their own password at first sign-in, exactly as an
+ * imported member does. Staff cannot: the claim refuses a staff address on
+ * purpose, so theirs is issued here and handed over. The button says which of
+ * the two is about to happen, because it is the difference between walking
+ * away and having a password to pass on.
  */
 function addForm({ messages, reload }) {
   const name = el('input', { type: 'text', required: 'required', placeholder: 'Full name' });
   const email = el('input', { type: 'email', required: 'required', placeholder: 'name@example.com', autocomplete: 'off' });
   const role = el('select', {}, ROLES.map(([value, text]) => el('option', { value, text })));
+  const button = el('button', { class: 'btn-quiet btn-inline', type: 'submit' });
+  const hint = el('p', { class: 'hint', style: 'margin:0' });
 
-  const form = el('form', { class: 'stack', style: 'margin-top:28px' }, [
-    el('h3', { style: 'margin:0', text: 'Add someone' }),
+  function describe() {
+    const staff = role.value !== 'member';
+    button.textContent = staff ? 'Add and issue a password' : 'Add';
+    hint.textContent = staff
+      ? 'A password is issued and shown once, for you to pass on.'
+      : 'They set their own password the first time they sign in.';
+  }
+  role.addEventListener('change', describe);
+  describe();
+
+  const form = el('form', { class: 'stack' }, [
+    el('h3', { class: 'section-heading', text: 'Add someone' }),
     el('div', {}, [el('label', { text: 'Name' }), name]),
     el('div', {}, [el('label', { text: 'Email' }), email]),
     el('div', {}, [el('label', { text: 'Role' }), role]),
-    el('button', { class: 'btn-quiet btn-inline', type: 'submit', text: 'Add and issue a password' }),
+    hint,
+    button,
   ]);
 
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
-    const button = form.querySelector('button');
     button.disabled = true;
     try {
       const created = await api.post('/api/admin/people', {
@@ -235,7 +262,10 @@ function addForm({ messages, reload }) {
       name.value = '';
       email.value = '';
       await reload();
-      showPassword(document.getElementById('people'), created);
+      // Only staff leave here with a password to pass on. For a member there
+      // is nothing to show, so say what happened instead.
+      if (created.password) showPassword(document.getElementById('people'), created);
+      else notice(messages, 'good', created.message);
     } catch (error) {
       notice(messages, 'bad', error.message);
     } finally {
