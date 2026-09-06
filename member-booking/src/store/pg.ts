@@ -514,6 +514,15 @@ export function createPgStore(connectionString?: string): Store {
         `;
         return mapMember(row);
       },
+      async lastSyncedAt(): Promise<Date | null> {
+        // Manual rows are written by hand and would drag the mark forward
+        // without anything having been read from Hapana.
+        const [row]: any[] = await sql()`
+          select max(synced_at) as at from members_cache where source = 'hapana'
+        `;
+        return row?.at ? new Date(row.at) : null;
+      },
+
       async listManual(): Promise<MemberRecord[]> {
         const rows: any[] = await sql()`
           select * from members_cache where source = 'manual' order by lower(email)

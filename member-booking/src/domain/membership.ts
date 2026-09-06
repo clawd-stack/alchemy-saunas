@@ -1,5 +1,6 @@
 import { BookingError } from '../lib/errors.ts';
 import type { Context } from './context.ts';
+import type { HapanaMember } from '../adapters/hapana/types.ts';
 import type { MemberRecord, MembershipStatus } from '../store/types.ts';
 
 /**
@@ -93,6 +94,31 @@ async function manualMember(
   };
 }
 
+/**
+ * Resolves a member id against Hapana, live.
+ *
+ * Hapana has no lookup by client id: the only member read is by email. So the
+ * cached row is used for the address and the live call is made on that, which
+ * keeps the re-check at booking time a real one rather than a read of a cache
+ * that could be a week old. The id is compared afterwards, because an address
+ * that now resolves to a different client is not the person holding the
+ * session.
+ */
+async function liveLookup(
+  context: Pick<Context, 'store' | 'membership'>,
+  memberId: string,
+): Promise<HapanaMember | null> {
+  const cached = await context.store.members.get(memberId);
+  if (cached?.email) {
+    const found = await context.membership.findMemberByEmail(cached.email);
+    return found && found.memberId === memberId ? found : null;
+  }
+  // Nothing cached to take an address from. Sources that can answer by id
+  // still do; the Hapana adapter raises NotSupported and the caller falls
+  // through to its cache path, which is empty here anyway.
+  return context.membership.getMember(memberId);
+}
+
 /** Re-checks a member on an action taken with an existing session cookie. */
 export async function verifyMemberById(
   context: Pick<Context, 'store' | 'membership' | 'config'>,
@@ -114,7 +140,7 @@ export async function verifyMemberById(
   }
 
   try {
-    const member = await context.membership.getMember(memberId);
+    const member = await liveLookup(context, memberId);
     if (!member || member.status !== 'active') return null;
     await context.store.members.upsertMany([toRecord(member)]);
     return {
@@ -153,8 +179,25 @@ function toRecord(member: {
 }
 
 /** Pattern B scheduled sync. Returns the number of members refreshed. */
-export async function syncMembers(context: Pick<Context, 'store' | 'membership'>): Promise<number> {
-  const members = await context.membership.listMembers();
+/**
+ * Refreshes the membership cache.
+ *
+ * A delta by default: Hapana returns everything changed on or after a given
+ * moment, so the sync asks for changes since the last one rather than pulling
+ * the whole membership every time. The mark is rewound by an hour, because a
+ * record written while the previous sync was mid-flight would otherwise fall
+ * in the gap between the two runs and never be read.
+ *
+ * The first run has no mark and pulls everything, which is what it is for.
+ */
+export async function syncMembers(
+  context: Pick<Context, 'store' | 'membership'>,
+  options: { full?: boolean } = {},
+): Promise<{ synced: number; delta: boolean }> {
+  const mark = options.full ? null : await context.store.members.lastSyncedAt();
+  const since = mark ? new Date(mark.getTime() - 3_600_000) : undefined;
+
+  const members = await context.membership.listMembers(since);
   await context.store.members.upsertMany(members.map(toRecord));
-  return members.length;
+  return { synced: members.length, delta: Boolean(since) };
 }

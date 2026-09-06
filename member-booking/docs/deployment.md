@@ -199,14 +199,14 @@ has ever been sent through chat or email, and name the API client
 Without it the channel runs against the mock and refuses to start in
 production, so this is required before members are pointed at it.
 
-While there, run the probe from any machine that can reach Hapana:
+Set `HAPANA_SITE_ID` alongside it. The API wants both on every request, as
+headers named `accessID` and `siteID`, and the key is bound to the site it was
+registered against. `GET /v2/site` lists the sites a key can see, which is how
+to find the East Fremantle id.
 
-```bash
-HAPANA_API_KEY='…' node member-booking/scripts/probe-hapana.mjs
-```
-
-It answers whether Pattern A is available. Not urgent: Pattern B ships as the
-default and needs read access only.
+Read access is all this channel needs: Hapana has no booking-create endpoint,
+so the ringfenced allocation is this service's own. See
+`docs/hapana-findings.md`.
 
 ### 7. Webflow page
 

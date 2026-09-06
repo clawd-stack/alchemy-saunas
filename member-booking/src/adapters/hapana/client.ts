@@ -7,10 +7,14 @@ import { env } from '../../lib/env.ts';
  * module, or anything that imports it, is ever shipped to a browser: the pages
  * in web/ talk to our own /api endpoints and never to Hapana directly.
  *
- * The authentication scheme is configurable because it could not be confirmed
- * from the build environment (apidocs.hapana.com is unreachable from CI).
- * HAPANA_AUTH_STYLE selects how the key is presented; run
- * scripts/probe-hapana.mjs to find which one the account accepts.
+ * Authentication is two request headers, accessID and siteID, confirmed from
+ * Hapana's own documentation on 2026-09-06. It used to be five candidate
+ * styles behind HAPANA_AUTH_STYLE, guessed because the docs were unreachable
+ * from the build environment. All five were wrong. There is one scheme, so
+ * there is nothing left to configure.
+ *
+ * siteID is a header, not a query parameter, and the key is bound to the site
+ * it was registered against. See docs/hapana-findings.md.
  */
 
 export class HapanaError extends Error {
@@ -31,38 +35,13 @@ export class HapanaUnavailable extends Error {
   }
 }
 
-export type AuthStyle = 'x-api-key' | 'bearer' | 'basic' | 'apikey-header' | 'query';
-
-function authStyle(): AuthStyle {
-  const style = process.env.HAPANA_AUTH_STYLE ?? 'x-api-key';
-  const allowed: AuthStyle[] = ['x-api-key', 'bearer', 'basic', 'apikey-header', 'query'];
-  return (allowed as string[]).includes(style) ? (style as AuthStyle) : 'x-api-key';
-}
-
-function applyAuth(url: URL, headers: Record<string, string>): void {
-  const key = env.hapanaApiKey;
-  switch (authStyle()) {
-    case 'bearer':
-      headers.authorization = `Bearer ${key}`;
-      break;
-    case 'basic': {
-      // Keys of the form "id:secret" are a natural fit for basic auth.
-      headers.authorization = `Basic ${Buffer.from(key).toString('base64')}`;
-      break;
-    }
-    case 'apikey-header':
-      headers.apikey = key;
-      break;
-    case 'query':
-      url.searchParams.set('apikey', key);
-      break;
-    case 'x-api-key':
-    default:
-      headers['x-api-key'] = key;
-      break;
-  }
-  if (env.hapanaSiteId) headers['x-site-id'] = env.hapanaSiteId;
-  if (env.hapanaCompanyId) headers['x-company-id'] = env.hapanaCompanyId;
+function applyAuth(headers: Record<string, string>): void {
+  headers.accessID = env.hapanaApiKey;
+  // Documented as "siteID registered with Auth Key & accessID": the key and
+  // the site are bound at registration, so this is not optional in practice.
+  // Sent only when configured, so a deployment that has not been told its site
+  // yet gets Hapana's own 401 rather than a header reading "undefined".
+  if (env.hapanaSiteId) headers.siteID = env.hapanaSiteId;
 }
 
 export interface RequestOptions {
@@ -82,7 +61,7 @@ export async function hapanaRequest<T = unknown>(path: string, options: RequestO
   }
   const headers: Record<string, string> = { accept: 'application/json' };
   if (body !== undefined) headers['content-type'] = 'application/json';
-  applyAuth(url, headers);
+  applyAuth(headers);
 
   let lastError: unknown;
   for (let attempt = 0; attempt <= retries; attempt += 1) {

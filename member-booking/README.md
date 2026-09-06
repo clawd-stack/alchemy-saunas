@@ -28,35 +28,26 @@ design: a database, Hapana credentials, a real email provider, and the Webflow
 page. `GET /api/health` reports on each and says plainly whether the channel is
 safe to open.
 
-One open item, which does not block: **Hapana write capability** is still
-unconfirmed, because the build environment cannot reach Hapana. It ships as
-Pattern B, which needs no write access, so nothing has to change to go live.
+### The Hapana question, answered
 
-### The Hapana question, and why it did not block the build
+PRD 9.1 forked the architecture on whether Hapana's API can create a booking.
+It cannot. The published API is 18 endpoints and none of them books anything:
+bookings can be read (`futureBookings`) and attendance recorded
+(`generalCheckin`), but never created. Read from Hapana's own documentation on
+2026-09-06; the endpoint list, the auth scheme and the parameters are in
+`docs/hapana-findings.md`.
 
-PRD 9.1 forks the architecture on whether Hapana's API can create a booking.
-That could not be answered from the build environment: outbound access to
-`api.hapana.com` and `apidocs.hapana.com` is blocked by egress policy, through
-both HTTP clients and a browser.
+So Pattern B is not the default pending an answer. It is the only arrangement
+available, and it happens to be the better one: this service owns a ringfenced
+allocation of 10 spots per session, Hapana keeps its own, the two pools are
+disjoint by construction, and no cross-system race is possible. Read access is
+all this channel ever needs.
 
-So the build does not depend on the answer. Both patterns are implemented
-behind one interface and selected by a config value, `booking_backend`:
-
-- **`local` (Pattern B, the default, and what ships today).** This service owns
-  the ringfenced allocation of 10 spots per session. Hapana keeps its 20. The
-  two allocations are disjoint by construction, so no cross-system race is
-  possible and the sum is fixed. Needs read access only.
-- **`hapana` (Pattern A).** Hapana holds all inventory, including a hidden
-  member class on the East Fremantle room. Needs booking-creation access.
-
-To resolve it, run `HAPANA_API_KEY=… node scripts/probe-hapana.mjs` from a
-machine that can reach Hapana. It reports which auth style the account accepts,
-which endpoints answer, and whether a booking-creation endpoint exists, then
-prints a findings block to paste into `docs/hapana-findings.md`. It issues GET
-requests only and never creates a booking.
-
-Switching patterns afterwards is a config change in the admin screen, not a
-deploy.
+There are no webhooks either, so the membership cache is polled rather than
+pushed. `GET /v2/customer/client` takes a `lastModifiedDate`, so the scheduled
+sync asks for the delta rather than pulling the whole membership. Sign-in and
+booking both verify against Hapana live, with the cache as the outage
+fallback, which is the right shape given there is no push.
 
 ---
 

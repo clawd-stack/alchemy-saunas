@@ -17,7 +17,7 @@ This is the architectural spec and product requirements. It does not include Git
 | Decision | Value | Implication |
 |---|---|---|
 | Build target | Static pages plus serverless functions on Netlify, Postgres (Netlify DB / Neon) | No framework, no build step for the front end. Migrations run automatically on deploy and block publish on failure. |
-| Inventory model | This channel owns a ringfenced allocation, Hapana keeps its own | The two allocations are disjoint by construction, so no cross-system race is possible. Read-only Hapana access is sufficient. |
+| Inventory model | This channel owns a ringfenced allocation, Hapana keeps its own | Not a preference: Hapana's API has no booking-create endpoint, confirmed 2026-09-06. The two allocations are disjoint by construction, so no cross-system race is possible, and read-only access is all this channel needs. |
 | Capacity | **10 spots per session**, hourly sessions | The allocation is the rule that governs the build. A venue-wide ceiling is optional and off by default. |
 | Operating hours | 5am to 9pm, seven days, 60 minute sessions | Last session starts 8pm. Sixteen per day. Held in config, so a timetable change is an edit, not a release. |
 | Guests | Up to 3 per member, $35 each | Collected by EFTPOS at the door. The software records that it happened and moves no money. |
@@ -331,7 +331,7 @@ Functions: `create_member_booking`, `cancel_member_booking`, `cancel_guest_spot`
 ## 9. Dependencies and prerequisites
 
 1. **Hapana API credentials**, read access sufficient. Rotate the key first if it has ever been sent through chat or email, and name the client distinctly (`east-fremantle-member-channel`) so it can be revoked on its own. Until it exists, the People list is the entire membership the channel knows. **Owner: Alchemy.**
-2. **Hapana write capability**, still unconfirmed, because the build environment cannot reach Hapana (egress policy blocks `api.hapana.com`). Does not block go-live: `local` ships by default and needs read access only. Resolve by running `scripts/probe-hapana.mjs` from a machine that can reach Hapana; it issues GET requests only and never creates a booking. **Owner: whoever runs the probe.**
+2. **Two field-level unknowns**, each one live call, neither blocking. The membership status field names, because Hapana documents request parameters but no response schemas (`GET /v2/customer/client?email=<a known member>`), and the East Fremantle `siteID` (`GET /v2/site`). Both can be run from the sample-request form on each endpoint's documentation page. **Owner: whoever holds the key.** The larger question this replaces, whether Hapana can create a booking, was answered on 2026-09-06: it cannot, so the ringfenced allocation is permanent. See `docs/hapana-findings.md`.
 3. **A real email provider.** SMTP through a mailbox the business already owns is the cheapest correct answer. **Owner: Alchemy.**
 4. **`SESSION_SECRET`**, 32 random bytes, in the Netlify environment. **Owner: whoever deploys.**
 5. **The Webflow page** and its private URL, with the booking page embedded or framed. **Owner: Alchemy.**

@@ -281,6 +281,12 @@ export interface Store {
       homeVenueId: string | null;
     }): Promise<MemberRecord>;
     listManual(): Promise<MemberRecord[]>;
+    /**
+     * When a synced member was last written, which is the high-water mark the
+     * scheduled sync asks Hapana for changes since. Null when nothing has ever
+     * been synced, meaning the next sync pulls the whole membership.
+     */
+    lastSyncedAt(): Promise<Date | null>;
     removeManual(memberId: string): Promise<boolean>;
   };
   auth: {

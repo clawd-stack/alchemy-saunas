@@ -604,6 +604,13 @@ export function createMemoryStore(): MemoryStore {
         members.set(memberId, record);
         return { ...record };
       },
+      async lastSyncedAt(): Promise<Date | null> {
+        const times = [...members.values()]
+          .filter((member) => member.source === 'hapana')
+          .map((member) => new Date(member.syncedAt).getTime());
+        return times.length ? new Date(Math.max(...times)) : null;
+      },
+
       async listManual(): Promise<MemberRecord[]> {
         return [...members.values()]
           .filter((m) => m.source === 'manual')

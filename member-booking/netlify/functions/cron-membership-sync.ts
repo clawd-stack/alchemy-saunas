@@ -28,9 +28,10 @@ export default async (): Promise<Response> => {
   const context = await buildContext();
 
   let synced = 0;
+  let delta = false;
   let syncError: string | null = null;
   try {
-    synced = await syncMembers(context);
+    ({ synced, delta } = await syncMembers(context));
   } catch (error) {
     // A failed sync must not stop the timetable from being built.
     syncError = error instanceof Error ? error.message : String(error);
@@ -38,9 +39,12 @@ export default async (): Promise<Response> => {
   }
 
   const slots = await materialiseTimetable(context);
-  console.log(`[member-booking] membership sync: ${synced} members, ${slots} sessions materialised`);
+  console.log(
+    `[member-booking] membership sync: ${synced} members ${delta ? 'changed since the last run' : '(full pull)'}, ` +
+    `${slots} sessions materialised`,
+  );
 
-  return new Response(JSON.stringify({ ok: syncError === null, synced, slots, syncError }), {
+  return new Response(JSON.stringify({ ok: syncError === null, synced, delta, slots, syncError }), {
     headers: { 'content-type': 'application/json' },
   });
 };
