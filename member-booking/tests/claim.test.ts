@@ -158,8 +158,26 @@ describe('POST /api/auth/claim', () => {
     });
 
     const response = await claimHandler(claim('door@example.com'));
-    expect(response.status).toBe(401);
+    expect(response.status).toBe(403);
     expect(await store.credentials.get('door@example.com')).toBeNull();
+  });
+
+  it('refuses a staff address indistinguishably from an unknown one', async () => {
+    // Otherwise one anonymous request per address sorts the venue's staff
+    // accounts out of a list, which is the probing every other endpoint is
+    // built to prevent.
+    store.seedStaff({
+      staffId: 'staff-1', email: 'door@example.com', displayName: 'Dee Door',
+      role: 'door', venueIds: [VENUE_ID], active: true,
+    });
+
+    const asStaff = await claimHandler(claim('door@example.com'));
+    const asStranger = await claimHandler(claim('nobody@example.com'));
+    const asPaused = await claimHandler(claim(PAUSED_MEMBER.email));
+
+    expect(asStaff.status).toBe(asStranger.status);
+    expect(await asStaff.json()).toEqual(await asStranger.json());
+    expect(asPaused.status).toBe(asStranger.status);
   });
 
   it('refuses a password too short to be one', async () => {

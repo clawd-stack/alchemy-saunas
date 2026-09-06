@@ -193,3 +193,42 @@ describe('the configuration value', () => {
     expect(CONFIG_DEFAULTS.packageAccess).toEqual({});
   });
 });
+
+describe('a package rule against a member Hapana resolves', () => {
+  /**
+   * The case that made the rule a no-op. Hapana does not return a package, so
+   * the row a live hit writes carries none, and it is a different row from the
+   * one the import wrote: same address, different member id. Reading the
+   * package off the resolved row therefore answered "no package, so allowed"
+   * for precisely the members the venue had ruled on, and only once the Hapana
+   * key was set, which is not when anybody would be looking.
+   */
+  it('still applies when the live lookup answers, not just the cache', async () => {
+    const store = createMemoryStore();
+    // What the import wrote.
+    await store.members.upsertManual({
+      email: 'live@example.com', firstName: 'Liv', lastName: 'E', status: 'active',
+      homeVenueId: VENUE_ID, membershipPackage: 'Off-Peak Membership | East Fremantle',
+    });
+    // What Hapana knows: the same person, its own id, no package.
+    const membership = createMockHapana({
+      members: [{
+        memberId: 'hapana-live-1', email: 'live@example.com', firstName: 'Liv', lastName: 'E',
+        status: 'active', homeVenueId: VENUE_ID,
+      }],
+      supportsWrites: false,
+    });
+
+    const open = { bookingBackend: 'local', packageAccess: {} } as never;
+    expect(await verifyMemberByEmail({ store, membership, config: open }, 'live@example.com')).not.toBeNull();
+
+    const closed = {
+      bookingBackend: 'local',
+      packageAccess: { 'Off-Peak Membership | East Fremantle': false },
+    } as never;
+    expect(await verifyMemberByEmail({ store, membership, config: closed }, 'live@example.com')).toBeNull();
+
+    // And the live hit having written its own row does not change the answer.
+    expect(await store.members.packageFor('live@example.com')).toBe('Off-Peak Membership | East Fremantle');
+  });
+});

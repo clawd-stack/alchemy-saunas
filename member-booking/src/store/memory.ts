@@ -114,6 +114,22 @@ export function createMemoryStore(): MemoryStore {
   const audit: AuditRow[] = [];
   const config = new Map<string, ConfigEntry>();
   const members = new Map<string, MemberRecord>();
+
+  /**
+   * Every row for an address, in the order the Postgres store uses, so the two
+   * cannot disagree about which row an address resolves to. An address can hold
+   * more than one: an import writes manual:<email>, a sync writes hapana:<id>.
+   * The curated row first, then the freshest, then by id so it is never chance.
+   */
+  const rowsFor = (email: string): MemberRecord[] => {
+    const wanted = email.toLowerCase();
+    return [...members.values()]
+      .filter((m) => m.email.toLowerCase() === wanted)
+      .sort((a, b) =>
+        Number(b.source === 'manual') - Number(a.source === 'manual')
+        || b.syncedAt.localeCompare(a.syncedAt)
+        || a.memberId.localeCompare(b.memberId));
+  };
   const staff: StaffRecord[] = [];
   const credentials = new Map<string, CredentialRecord>();
   const tokens = new Map<string, { email: string; memberId: string; expiresAt: Date; consumed: boolean }>();
@@ -579,8 +595,10 @@ export function createMemoryStore(): MemoryStore {
 
     members: {
       async getByEmail(email: string): Promise<MemberRecord | null> {
-        const wanted = email.toLowerCase();
-        return [...members.values()].find((m) => m.email.toLowerCase() === wanted) ?? null;
+        return rowsFor(email)[0] ?? null;
+      },
+      async packageFor(email: string): Promise<string | null> {
+        return rowsFor(email).find((m) => m.membershipPackage)?.membershipPackage ?? null;
       },
       async get(memberId: string): Promise<MemberRecord | null> {
         return members.get(memberId) ?? null;
@@ -607,9 +625,12 @@ export function createMemoryStore(): MemoryStore {
           lastName,
           status,
           homeVenueId,
-          // Kept when the caller says nothing, so a hand edit does not erase
-          // what an import established.
-          membershipPackage: membershipPackage ?? members.get(memberId)?.membershipPackage ?? null,
+          // Omitted keeps what is there, so a hand edit does not erase what an
+          // import established; null clears it, which is an import with an
+          // empty Package Name column.
+          membershipPackage: membershipPackage === undefined
+            ? members.get(memberId)?.membershipPackage ?? null
+            : membershipPackage,
           syncedAt: new Date().toISOString(),
           source: 'manual',
         };
