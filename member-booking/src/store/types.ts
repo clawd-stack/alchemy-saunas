@@ -270,11 +270,34 @@ export interface Store {
     set(key: string, value: unknown, actor: string, sourceNote?: string | null): Promise<void>;
   };
   members: {
+    /**
+     * The row for an address. An address can hold more than one: an import
+     * writes `manual:<email>` and a Hapana sync writes `hapana:<id>`, so the
+     * order is defined rather than left to the database. A manual row wins,
+     * because it is the one a person curated and the one the admin screens
+     * edit, and the freshest wins after that.
+     */
     getByEmail(email: string): Promise<MemberRecord | null>;
+    /**
+     * The membership package held at an address, across every row for it.
+     *
+     * Asked by address rather than by member id because the id depends on which
+     * way the member was resolved: a live Hapana hit writes a `hapana:<id>` row
+     * carrying no package, since Hapana does not return one, and reading the
+     * package off that row answered "no package" for somebody the import had
+     * ruled on.
+     */
+    packageFor(email: string): Promise<string | null>;
     get(memberId: string): Promise<MemberRecord | null>;
     upsertMany(members: MemberRecord[]): Promise<void>;
     lastSyncAt(): Promise<string | null>;
     /** Adds or updates a member the venue entered by hand. */
+    /**
+     * `membershipPackage` distinguishes three things, and has to: omitted keeps
+     * whatever is there, so a hand edit does not erase what an import
+     * established; `null` clears it, which is what an import with an empty
+     * Package Name column means; a string sets it.
+     */
     upsertManual(input: {
       email: string;
       firstName: string | null;

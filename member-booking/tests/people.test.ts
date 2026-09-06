@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { overrideContext } from '../src/domain/context.ts';
 import { createMemoryStore, type MemoryStore } from '../src/store/memory.ts';
+import { verifyMemberByEmail } from '../src/domain/membership.ts';
 import { createMockHapana } from '../src/adapters/hapana/mock.ts';
 import { issueStaffSession } from '../src/lib/auth.ts';
 import { hashPassword } from '../src/lib/password.ts';
@@ -216,17 +217,39 @@ describe('one list', () => {
 });
 
 describe('roles', () => {
-  it('moves somebody from member to staff, and the membership does not linger', async () => {
+  it('moves somebody from member to staff, and the membership stops working', async () => {
     await peopleHandler(call({ action: 'add', email: 'up@example.com', name: 'Up Grade', role: 'member' }));
-    expect(await store.members.listManual()).toHaveLength(1);
 
     const response = await peopleHandler(call({ email: 'up@example.com', role: 'manager' }, 'PATCH'));
     expect(response.status).toBe(200);
 
-    // One address cannot be both: sign-in resolves staff first, so a
-    // membership left behind here would never be reached again.
-    expect(await store.members.listManual()).toHaveLength(0);
+    // One address cannot be both, and the membership must not survive the
+    // move: sign-in resolves staff first, so a membership still standing here
+    // would be a way to book that nobody could see on the screen. Cancelled
+    // rather than deleted, because deleting threw away the package they hold.
     expect((await list()).get('up@example.com').role).toBe('manager');
+    expect(await verifyMemberByEmail(
+      { store, membership: createMockHapana({ members: [], supportsWrites: false }), config: { bookingBackend: 'local' } as never },
+      'up@example.com',
+    )).toBeNull();
+  });
+
+  it('keeps the package across member, staff and back again', async () => {
+    // The round trip used to delete the membership and build a new one, which
+    // came back holding no package. No package is always allowed, so a member
+    // whose package the venue had closed silently regained the channel by
+    // being made staff for an afternoon.
+    await store.members.upsertManual({
+      email: 'round@example.com', firstName: 'Rou', lastName: 'Nd', status: 'active',
+      homeVenueId: VENUE_ID, membershipPackage: 'Off-Peak Membership | East Fremantle',
+    });
+
+    await peopleHandler(call({ email: 'round@example.com', role: 'manager' }, 'PATCH'));
+    await peopleHandler(call({ email: 'round@example.com', role: 'member' }, 'PATCH'));
+
+    expect(await store.members.packageFor('round@example.com')).toBe('Off-Peak Membership | East Fremantle');
+    expect((await list()).get('round@example.com').membershipPackage)
+      .toBe('Off-Peak Membership | East Fremantle');
   });
 
   it('moves somebody from staff back to member, and they read as a member', async () => {

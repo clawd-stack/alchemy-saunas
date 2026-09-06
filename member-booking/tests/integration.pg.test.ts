@@ -362,6 +362,44 @@ suite('pg store implementation', () => {
     expect(await store.members.lastSyncAt()).not.toBeNull();
   });
 
+  it('reads the package off whichever row for the address carries one', async () => {
+    // The two rows an address really ends up with: the one the import wrote,
+    // holding the package, and the one a live Hapana hit writes, holding none
+    // because Hapana does not return one. Against the database this is the
+    // ordering, and unordered it was whichever row the planner returned.
+    const email = `both.rows.${Math.random().toString(36).slice(2, 8)}@example.com`;
+    await store.members.upsertManual({
+      email, firstName: 'Both', lastName: 'Rows', status: 'active',
+      homeVenueId: VENUE_ID, membershipPackage: 'Off-Peak Membership | East Fremantle',
+    });
+    await store.members.upsertMany([{
+      memberId: `hapana-${Math.random().toString(36).slice(2, 8)}`,
+      email, firstName: 'Both', lastName: 'Rows', status: 'active', homeVenueId: VENUE_ID,
+      syncedAt: new Date().toISOString(), membershipPackage: null, source: 'hapana' as const,
+    }]);
+
+    expect(await store.members.packageFor(email)).toBe('Off-Peak Membership | East Fremantle');
+    // And the curated row is the one an address resolves to, every time.
+    expect((await store.members.getByEmail(email))?.source).toBe('manual');
+  });
+
+  it('keeps a package when told nothing, and clears it when told null', async () => {
+    // Coalescing the two meant an import could never empty a package: the row
+    // was planned as an update and written as a no-op, forever.
+    const email = `pkg.${Math.random().toString(36).slice(2, 8)}@example.com`;
+    const base = { email, firstName: 'Pack', lastName: 'Age', status: 'active' as const, homeVenueId: VENUE_ID };
+
+    await store.members.upsertManual({ ...base, membershipPackage: 'Founder Membership | East Fremantle' });
+    // Said nothing: kept.
+    await store.members.upsertManual(base);
+    expect((await store.members.getByEmail(email))?.membershipPackage)
+      .toBe('Founder Membership | East Fremantle');
+
+    // Said null: cleared.
+    await store.members.upsertManual({ ...base, membershipPackage: null });
+    expect((await store.members.getByEmail(email))?.membershipPackage).toBeNull();
+  });
+
   it('queues and marks outbound email', async () => {
     const emailId = await store.outbox.enqueue({
       toEmail: 'outbox@example.com',

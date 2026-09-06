@@ -74,8 +74,14 @@ export default async (request: Request): Promise<Response> => {
     // Staff never come through here. Their accounts are issued by an admin,
     // and an address that is staff is not a member: the People screen keeps
     // the two exclusive, and this is the second lock on the same door.
+    //
+    // Refused as though the address were simply not a member, and not with the
+    // sign-in refusal it used to raise. That was a different status and a
+    // different message, so one anonymous request per address said which of
+    // them belong to staff, which is exactly the probing the rest of the API
+    // is careful to prevent.
     const staff = await context.store.auth.getStaffByEmail(email);
-    if (staff) throw new BookingError('SIGNIN_FAILED');
+    if (staff) throw new BookingError('NO_ACTIVE_MEMBERSHIP');
 
     const held = await context.store.credentials.get(email);
     if (held) {

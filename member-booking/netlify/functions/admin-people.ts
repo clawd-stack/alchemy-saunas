@@ -510,8 +510,22 @@ async function place(
   role: Role,
 ): Promise<void> {
   if (STAFF_ROLES.has(role)) {
+    // Cancelled, not deleted. Cancelled already stops them booking, which is
+    // all that promoting somebody to staff has to do, and deleting the row
+    // threw away the package they hold: member to staff and back left them
+    // with none, which reads as "no package" and is always allowed, so a
+    // closed package quietly reopened for that person. The package is not
+    // mentioned here, and omitting it keeps it.
     const member = (await context.store.members.listManual()).find((m) => m.email.toLowerCase() === email);
-    if (member) await context.store.members.removeManual(member.memberId);
+    if (member) {
+      await context.store.members.upsertManual({
+        email: member.email,
+        firstName: member.firstName,
+        lastName: member.lastName,
+        status: 'cancelled',
+        homeVenueId: member.homeVenueId,
+      });
+    }
     await context.store.auth.upsertStaff({
       email,
       displayName: name,

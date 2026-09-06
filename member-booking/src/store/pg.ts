@@ -485,16 +485,35 @@ export function createPgStore(connectionString?: string): Store {
 
     members: {
       async getByEmail(email: string): Promise<MemberRecord | null> {
+        // Ordered, because an address can hold more than one row: an import
+        // writes manual:<email> and a sync writes hapana:<id>. Unordered, this
+        // returned whichever the planner happened to hand back first.
         const [row]: any[] = await sql()`
-          select * from members_cache where lower(email) = ${email.toLowerCase()}
+          select * from members_cache
+          where lower(email) = ${email.toLowerCase()}
+          order by (source = 'manual') desc, synced_at desc, member_id
+          limit 1
         `;
         return row ? mapMember(row) : null;
+      },
+      async packageFor(email: string): Promise<string | null> {
+        const [row]: any[] = await sql()`
+          select membership_package from members_cache
+          where lower(email) = ${email.toLowerCase()} and membership_package is not null
+          order by (source = 'manual') desc, synced_at desc, member_id
+          limit 1
+        `;
+        return row?.membership_package ?? null;
       },
       async get(memberId: string): Promise<MemberRecord | null> {
         const [row]: any[] = await sql()`select * from members_cache where member_id = ${memberId}`;
         return row ? mapMember(row) : null;
       },
-      async upsertManual({ email, firstName, lastName, status, homeVenueId, membershipPackage = null }): Promise<MemberRecord> {
+      async upsertManual({ email, firstName, lastName, status, homeVenueId, membershipPackage }): Promise<MemberRecord> {
+        // Omitted keeps what is there; null clears it. Collapsing the two meant
+        // an import could never empty a package that had been set: the row was
+        // planned as an update and written as a no-op, forever.
+        const keepPackage = membershipPackage === undefined;
         // Keyed on the address, so re-adding somebody updates them rather than
         // creating a second membership for the same person. The id is derived
         // from the address for the same reason, and prefixed so it can never
@@ -504,16 +523,16 @@ export function createPgStore(connectionString?: string): Store {
           insert into members_cache (member_id, email, first_name, last_name, status, home_venue_id,
                                      membership_package, source, synced_at)
           values (${`manual:${normalised}`}, ${normalised}, ${firstName}, ${lastName}, ${status}, ${homeVenueId},
-                  ${membershipPackage}, 'manual', now())
+                  ${membershipPackage ?? null}, 'manual', now())
           on conflict (member_id) do update
             set email = excluded.email,
                 first_name = excluded.first_name,
                 last_name = excluded.last_name,
                 status = excluded.status,
                 home_venue_id = excluded.home_venue_id,
-                -- Kept when the caller has nothing to say about it, so a hand
-                -- edit does not erase what an import established.
-                membership_package = coalesce(excluded.membership_package, members_cache.membership_package),
+                membership_package = case when ${keepPackage}
+                  then members_cache.membership_package
+                  else excluded.membership_package end,
                 source = 'manual',
                 synced_at = now()
           returning *

@@ -43,24 +43,25 @@ export function packageAllows(access: Record<string, boolean>, membershipPackage
 /**
  * Whether the package rules turn this member away.
  *
+ * Asked by address, never by member id. An address can hold more than one row:
+ * the import writes `manual:<email>` carrying the package, and a live Hapana
+ * hit writes `hapana:<id>` carrying none, because Hapana does not return one.
+ * Reading the package off the row the caller happened to resolve therefore
+ * answered "no package, so allowed" for exactly the members the venue had ruled
+ * on, and a package switched off under Settings admitted everybody holding it
+ * the moment the Hapana key was set.
+ *
  * Costs nothing until the venue has actually ruled on a package: with an empty
- * map this answers immediately and never reads anything. Once there are rules,
- * a path that does not already hold the member's row pays one indexed read for
- * it, which is the price of the rule being applied at sign-in and again at
- * booking rather than only at import time.
+ * map this answers immediately and never reads anything.
  */
 async function packageDenies(
   context: Pick<Context, 'store' | 'config'>,
-  lookup: { record?: MemberRecord | null; memberId?: string; email?: string },
+  email: string,
 ): Promise<boolean> {
   const access = context.config.packageAccess ?? {};
   if (Object.keys(access).length === 0) return false;
 
-  const record = lookup.record
-    ?? (lookup.memberId ? await context.store.members.get(lookup.memberId) : null)
-    ?? (lookup.email ? await context.store.members.getByEmail(lookup.email) : null);
-
-  return !packageAllows(access, record?.membershipPackage ?? null);
+  return !packageAllows(access, await context.store.members.packageFor(email));
 }
 
 function displayName(first: string | null, last: string | null, email: string): string {
@@ -85,7 +86,7 @@ export async function verifyMemberByEmail(
       // something recent to fall back to.
       await context.store.members.upsertMany([toRecord(member)]);
       if (member.status !== 'active') return null;
-      if (await packageDenies(context, { memberId: member.memberId, email: member.email })) return null;
+      if (await packageDenies(context, member.email)) return null;
       return {
         memberId: member.memberId,
         email: member.email,
@@ -107,7 +108,7 @@ export async function verifyMemberByEmail(
     console.warn('[member-booking] membership lookup failed, falling back to cache', error);
     const cached = await context.store.members.getByEmail(email);
     if (!cached || cached.status !== 'active') return null;
-    if (await packageDenies(context, { record: cached })) return null;
+    if (await packageDenies(context, cached.email)) return null;
     return {
       memberId: cached.memberId,
       email: cached.email,
@@ -135,7 +136,7 @@ async function manualMember(
 ): Promise<VerifiedMember | null> {
   const record = await context.store.members.getByEmail(email);
   if (!record || record.source !== 'manual' || record.status !== 'active') return null;
-  if (await packageDenies(context, { record })) return null;
+  if (await packageDenies(context, record.email)) return null;
   return {
     memberId: record.memberId,
     email: record.email,
@@ -181,7 +182,7 @@ export async function verifyMemberById(
   if (memberId.startsWith('manual:')) {
     const record = await context.store.members.get(memberId);
     if (!record || record.source !== 'manual' || record.status !== 'active') return null;
-    if (await packageDenies(context, { record })) return null;
+    if (await packageDenies(context, record.email)) return null;
     return {
       memberId: record.memberId,
       email: record.email,
@@ -195,7 +196,7 @@ export async function verifyMemberById(
     const member = await liveLookup(context, memberId);
     if (!member || member.status !== 'active') return null;
     await context.store.members.upsertMany([toRecord(member)]);
-    if (await packageDenies(context, { memberId: member.memberId, email: member.email })) return null;
+    if (await packageDenies(context, member.email)) return null;
     return {
       memberId: member.memberId,
       email: member.email,
@@ -210,7 +211,7 @@ export async function verifyMemberById(
     console.warn('[member-booking] membership re-check failed, falling back to cache', error);
     const cached = await context.store.members.get(memberId);
     if (!cached || cached.status !== 'active') return null;
-    if (await packageDenies(context, { record: cached })) return null;
+    if (await packageDenies(context, cached.email)) return null;
     return {
       memberId: cached.memberId,
       email: cached.email,
