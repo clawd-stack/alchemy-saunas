@@ -1,5 +1,5 @@
 import { api, el, money, notice } from '/api.js';
-import { mountSignIn } from '/signin.js';
+import { mountFirstTime, mountSignIn } from '/signin.js';
 import { mountNav } from '/nav.js';
 import { renderMyBookings } from '/bookings-list.js';
 
@@ -75,17 +75,23 @@ function dayKey(iso) {
 /* Sign in                                                           */
 /* ---------------------------------------------------------------- */
 
+const afterSignIn = async () => {
+  await loadSessions();
+  nav?.refresh();
+};
+
 mountSignIn({
   formId: 'signin-form',
   buttonId: 'signin-button',
   emailId: 'email',
   passwordId: 'password',
   messages,
-  onSignedIn: async () => {
-    await loadSessions();
-    nav?.refresh();
-  },
+  onSignedIn: afterSignIn,
 });
+
+// A member who has never been here has no password to sign in with, and
+// nobody is going to issue four hundred of them by hand.
+mountFirstTime({ messages, onSignedIn: afterSignIn });
 
 /* ---------------------------------------------------------------- */
 /* Sessions                                                          */

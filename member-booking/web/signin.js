@@ -66,6 +66,65 @@ export function mountSignIn({ formId, buttonId, emailId, passwordId, messages, o
 }
 
 /**
+ * The first-time form: a member choosing their own password.
+ *
+ * Four hundred members cannot be handed a password each, and the venue does
+ * not want to email them one, so what stands in for an invitation is the
+ * membership itself. The server checks the address resolves to an active
+ * member, and refuses an address that already has a password, so this is a way
+ * in for somebody who has never been in rather than a way to take an account
+ * from somebody who has.
+ */
+export function mountFirstTime({ messages, onSignedIn }) {
+  const open = document.getElementById('first-time');
+  const form = document.getElementById('claim-form');
+  const signIn = document.getElementById('signin-form');
+  const cancel = document.getElementById('claim-cancel');
+  if (!open || !form || !signIn) return;
+
+  const show = (claiming) => {
+    form.hidden = !claiming;
+    signIn.hidden = claiming;
+    open.parentElement.hidden = claiming;
+    if (claiming) document.getElementById('claim-email').focus();
+  };
+
+  open.addEventListener('click', () => show(true));
+  cancel?.addEventListener('click', () => {
+    show(false);
+    messages.innerHTML = '';
+  });
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const button = document.getElementById('claim-button');
+    const password = document.getElementById('claim-password');
+    const confirm = document.getElementById('claim-confirm');
+
+    if (password.value !== confirm.value) {
+      return notice(messages, 'warn', 'Those two passwords are not the same.');
+    }
+
+    button.disabled = true;
+    button.textContent = 'Setting…';
+    try {
+      const result = await api.post('/api/auth/claim', {
+        email: document.getElementById('claim-email').value.trim(),
+        password: password.value,
+      });
+      password.value = confirm.value = '';
+      show(false);
+      await onSignedIn(result);
+    } catch (error) {
+      notice(messages, 'bad', error.message);
+    } finally {
+      button.disabled = false;
+      button.textContent = 'Set password and sign in';
+    }
+  });
+}
+
+/**
  * The change-password form.
  *
  * Opened from the Change password control on the account page and the admin
