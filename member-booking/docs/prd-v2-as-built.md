@@ -82,7 +82,7 @@ The third is the Hapana boundary. Every Hapana-shaped thing sits in `src/adapter
 
 **Recommended stack.** TypeScript on Node 20 or later, Netlify Functions with `runtimeAPIVersion: 2`, the `postgres` npm client, `nodemailer` for SMTP, Vitest. Plain HTML, CSS and ES modules for the front end with no framework and no bundler. Total production dependencies: three. Git may choose otherwise with a stated reason, but dependency-light is the standing preference and the front end genuinely does not need a framework.
 
-**Scheduling.** Two Netlify scheduled functions, both hourly, declared in the function file itself (`export const config = { schedule: '@hourly' }`) so no plugin or dashboard setting is involved.
+**Scheduling.** Two Netlify scheduled functions, declared in the function file itself (`export const config = { schedule: ... }`) so no plugin or dashboard setting is involved. Waiver reminders run hourly, because a reminder 24 hours out has to be able to fire in any hour. The membership sync runs weekly on Monday morning. Cron is evaluated in UTC and Perth is UTC+8 with no daylight saving, so Monday 06:00 local is `0 22 * * 0`.
 
 ---
 
@@ -239,7 +239,7 @@ Every send is written to `email_outbox` first and marked sent afterwards, so a p
 | Job | Cadence | Behaviour |
 |---|---|---|
 | Waiver reminders | hourly | One reminder per waiver, 24 hours out, for anything unsigned. `reminder_sent_at` keeps it to one however often the job runs. Does not chase a guest whose spot was cancelled. |
-| Membership sync | hourly | Refreshes the membership cache from Hapana and materialises the timetable ahead. Never overwrites manually added members. |
+| Membership sync | weekly, Monday 06:00 Perth | Refreshes the membership cache from Hapana and materialises the timetable ahead. Never overwrites manually added members. Weekly is enough because membership is read live from Hapana at sign-in and again at booking: the cache is the fallback for an outage, and the timetable is materialised on every availability read anyway. The exposure weekly buys is a lapsed member booking during a Hapana outage. |
 
 ### 5.12 Health
 

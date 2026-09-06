@@ -1,3 +1,4 @@
+import { mapMembershipStatus } from '../../src/adapters/hapana/mapping.ts';
 import { buildContext } from '../../src/domain/context.ts';
 import { requireStaff } from '../../src/lib/auth.ts';
 import { generatePassword, hashPassword, readPassword, validatePassword } from '../../src/lib/password.ts';
@@ -10,6 +11,7 @@ import type { MemberRecord, MembershipStatus, StaffRecord } from '../../src/stor
  *
  *   GET    /api/admin/people                              one list
  *   POST   /api/admin/people { action: 'add', ... }       add, with a password
+ *   POST   /api/admin/people { action: 'import', ... }    bulk, from an export
  *   POST   /api/admin/people { action: 'reset', email }   new password
  *   PATCH  /api/admin/people { email, role|signIn }       change role, suspend
  *   DELETE /api/admin/people { email }                    remove
@@ -33,6 +35,9 @@ import type { MemberRecord, MembershipStatus, StaffRecord } from '../../src/stor
 const STAFF_ROLES = new Set(['door', 'manager', 'admin']);
 const ROLES = new Set(['member', 'door', 'manager', 'admin']);
 const STATUSES = new Set<MembershipStatus>(['active', 'paused', 'suspended', 'cancelled']);
+
+/** More than any single Alchemy site will ever have, and small enough to stay well inside a function's time. */
+const IMPORT_ROW_LIMIT = 5000;
 
 type Role = 'member' | 'door' | 'manager' | 'admin';
 
@@ -67,8 +72,19 @@ export default async (request: Request): Promise<Response> => {
     }
 
     if (request.method === 'POST') {
-      const body = await readJson<{ action?: unknown; email?: unknown; name?: unknown; role?: unknown; password?: unknown }>(request);
+      const body = await readJson<{
+        action?: unknown; email?: unknown; name?: unknown; role?: unknown; password?: unknown;
+        rows?: unknown; types?: unknown; deactivateMissing?: unknown; apply?: unknown;
+      }>(request);
       const action = String(body.action ?? 'add');
+
+      if (action === 'import') {
+        // Awaited, not just returned: a promise handed back from inside this
+        // try block rejects outside it, so a refusal would escape the handler
+        // as an unhandled rejection instead of the 400 it is.
+        return await importMembers(context, request, caller, body, await load());
+      }
+
       const email = normaliseEmail(body.email);
 
       if (action === 'reset') {
@@ -286,6 +302,153 @@ function merge(staff: StaffRecord[], members: MemberRecord[], credentials: { ema
 }
 
 /** Puts an address on the right side of the staff/member line, and only one. */
+/**
+ * Bulk import from a Hapana membership export.
+ *
+ * The export is the venue's to produce. This environment cannot reach Hapana
+ * at all, and an export is a page in the Hapana admin rather than something
+ * any API key here would fetch. What this does is take the file the venue
+ * already has and turn it into member rows in one pass, instead of the one at
+ * a time the Add button allows.
+ *
+ * Three rules make it safe to run twice, or on the wrong file:
+ *
+ *  - It writes member rows and nothing else. An address belonging to active
+ *    staff is reported and skipped: a spreadsheet must never demote an admin.
+ *  - It never touches a password. Somebody already signing in keeps their
+ *    credential; somebody new arrives without one and gets one from Add or New
+ *    password when they need it.
+ *  - Nothing is written unless `apply` is true. The same call with apply false
+ *    returns exactly the plan the write would carry out, which is what makes
+ *    reviewing before adjusting a real step rather than a hopeful one.
+ */
+async function importMembers(
+  context: Awaited<ReturnType<typeof buildContext>>,
+  request: Request,
+  caller: { email: string },
+  body: { rows?: unknown; types?: unknown; deactivateMissing?: unknown; apply?: unknown },
+  loaded: { staff: StaffRecord[]; members: MemberRecord[] },
+): Promise<Response> {
+  const rows = Array.isArray(body.rows) ? body.rows : null;
+  if (!rows) throw new BookingError('INVALID_REQUEST', { field: 'rows' });
+  if (rows.length > IMPORT_ROW_LIMIT) {
+    throw new BookingError(
+      'INVALID_REQUEST',
+      { field: 'rows' },
+      `That file has ${rows.length} rows. Import up to ${IMPORT_ROW_LIMIT} at a time.`,
+    );
+  }
+
+  // null means every type in the file. An empty array means none, which is a
+  // real answer (somebody unticked them all) and must not be read as "all".
+  const wanted = Array.isArray(body.types)
+    ? new Set(body.types.map((type) => String(type).trim().toLowerCase()))
+    : null;
+  const deactivateMissing = body.deactivateMissing === true;
+  const apply = body.apply === true;
+
+  const staffEmails = new Set(loaded.staff.filter((s) => s.active).map((s) => s.email.toLowerCase()));
+  const existing = new Map(loaded.members.map((m) => [m.email.toLowerCase(), m]));
+
+  const types = new Map<string, number>();
+  const add: Array<{ email: string; name: string }> = [];
+  const update: Array<{ email: string; name: string }> = [];
+  const skippedStaff: string[] = [];
+  const seen = new Set<string>();
+  const toWrite: Array<{ email: string; firstName: string | null; lastName: string | null; status: MembershipStatus }> = [];
+  let unchanged = 0;
+  let invalid = 0;
+  let excludedByType = 0;
+  let duplicates = 0;
+
+  for (const raw of rows) {
+    const row = (raw ?? {}) as Record<string, unknown>;
+    const email = String(row.email ?? '').trim().toLowerCase();
+    // A line with no address is not a member this channel can hold: the
+    // address is both the identity and the only way to reach them.
+    if (!email || !email.includes('@')) { invalid += 1; continue; }
+
+    const type = String(row.membershipType ?? '').trim();
+    if (type) types.set(type, (types.get(type) ?? 0) + 1);
+    if (wanted && !wanted.has(type.toLowerCase())) { excludedByType += 1; continue; }
+
+    if (seen.has(email)) { duplicates += 1; continue; }
+    seen.add(email);
+
+    if (staffEmails.has(email)) { skippedStaff.push(email); continue; }
+
+    const whole = String(row.name ?? '').trim();
+    const [first, ...rest] = whole.split(/\s+/).filter(Boolean);
+    const firstName = (String(row.firstName ?? '').trim() || first || '') || null;
+    const lastName = (String(row.lastName ?? '').trim() || rest.join(' ')) || null;
+    // No status column means the venue exported the members it wanted, which
+    // is what the screen asks for. Anything present is mapped through the same
+    // table a Hapana sync uses, so an unrecognised value lands on suspended
+    // here too rather than quietly becoming active.
+    const status: MembershipStatus = row.status === undefined || String(row.status).trim() === ''
+      ? 'active'
+      : mapMembershipStatus(row.status);
+
+    const label = [firstName, lastName].filter(Boolean).join(' ') || email;
+    const held = existing.get(email);
+    if (!held) {
+      add.push({ email, name: label });
+    } else if (held.status !== status || held.firstName !== firstName || held.lastName !== lastName) {
+      update.push({ email, name: label });
+    } else {
+      unchanged += 1;
+      continue;
+    }
+    toWrite.push({ email, firstName, lastName, status });
+  }
+
+  // In the app as a member, absent from the file. Offered rather than assumed:
+  // a partial export would otherwise cancel the membership of everybody the
+  // venue did not happen to include in it.
+  const missing = loaded.members
+    .filter((m) => m.status !== 'cancelled' && !seen.has(m.email.toLowerCase()))
+    .map((m) => ({ email: m.email, name: [m.firstName, m.lastName].filter(Boolean).join(' ') || m.email }));
+
+  if (apply) {
+    for (const row of toWrite) {
+      await context.store.members.upsertManual({ ...row, homeVenueId: context.venueId });
+    }
+    if (deactivateMissing) {
+      for (const person of missing) {
+        const held = existing.get(person.email.toLowerCase());
+        if (!held) continue;
+        // Cancelled, not deleted. They stop being able to book, and a past
+        // booking or an audit row naming them still resolves to a person.
+        await context.store.members.upsertManual({
+          email: held.email,
+          firstName: held.firstName,
+          lastName: held.lastName,
+          status: 'cancelled',
+          homeVenueId: held.homeVenueId,
+        });
+      }
+    }
+    console.log(
+      `[member-booking] ${caller.email} imported members: ${add.length} added, ${update.length} updated, ` +
+      `${deactivateMissing ? missing.length : 0} cancelled`,
+    );
+  }
+
+  return json(request, {
+    ok: true,
+    applied: apply,
+    types: [...types.entries()]
+      .map(([type, count]) => ({ type, count }))
+      .sort((a, b) => b.count - a.count || a.type.localeCompare(b.type)),
+    plan: { add, update, unchanged, excludedByType, duplicates, invalid, skippedStaff, missing },
+    message: apply
+      ? `${add.length} added, ${update.length} updated, ${unchanged} already current` +
+        (deactivateMissing && missing.length ? `, ${missing.length} cancelled.` : '.')
+      : `${add.length} to add, ${update.length} to update, ${unchanged} already current, ` +
+        `${missing.length} in the app but not in this file.`,
+  });
+}
+
 async function place(
   context: Awaited<ReturnType<typeof buildContext>>,
   email: string,

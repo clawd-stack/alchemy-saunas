@@ -1,5 +1,6 @@
 import { api, el, load, notice, table } from '/ui.js';
 import { showPassword } from '/admin/password-panel.js';
+import { importPanel } from '/admin/import-panel.js';
 
 /**
  * Everybody, in one table.
@@ -37,6 +38,7 @@ export async function renderPeople(host, { messages, reload }) {
         ? table(['Person', 'Role', 'Sign-in', ''], data.people.map((person) => row(person, { messages, reload })))
         : el('p', { class: 'muted', text: 'Nobody yet.' }),
       addForm({ messages, reload }),
+      importPanel({ messages, reload }),
     ];
   });
 }
