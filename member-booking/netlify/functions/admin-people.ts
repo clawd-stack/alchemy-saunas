@@ -158,11 +158,22 @@ export default async (request: Request): Promise<Response> => {
       }
 
       console.log(`[member-booking] ${caller.email} added ${email} as ${role}`);
+
+      // An address the venue already knows is the same person, not a second
+      // one, so this renamed somebody rather than adding anybody. Said plainly,
+      // because the alternative is an admin typing a name into what looks like
+      // an empty form and quietly overwriting a record they never saw.
+      const renamed = existing && existing.name !== name
+        ? ` ${existing.name} was already at this address and is now ${name}.`
+        : '';
+
       return json(request, {
         ok: true,
         email,
         password: supplied || !password ? null : password,
-        message: held
+        message: renamed
+          ? `${email} is ${label(role)}.${renamed}`
+          : held
           ? `${email} is now ${label(role)}. They already had a password, so it is unchanged.`
           : supplied
             ? `${email} added as ${label(role)}, with the password you supplied.`
@@ -271,7 +282,8 @@ export default async (request: Request): Promise<Response> => {
  * An active staff account wins over a membership because that is the order
  * sign-in resolves them in; a deactivated one only shows through when there is
  * no membership to show instead, so a person moved from staff to member reads
- * as a member rather than as a switched-off manager.
+ * as a member rather than as a switched-off manager. The name follows the same
+ * rule as the role, for the same reason.
  */
 function merge(staff: StaffRecord[], members: MemberRecord[], credentials: { email: string; active: boolean; mustChange: boolean; lastLoginAt: string | null }[]) {
   const byEmail = new Map<string, { staff?: StaffRecord; member?: MemberRecord }>();
@@ -301,10 +313,18 @@ function merge(staff: StaffRecord[], members: MemberRecord[], credentials: { ema
         active = false;
       }
 
+      // The name follows whichever record is the live one. A deactivated staff
+      // row keeps its display name, because an audit entry naming them has to
+      // resolve to a person, and it used to win here: moving somebody to member
+      // at an address that used to be staff put the old name straight back on
+      // screen, however many times the new one was typed.
+      const memberName = [m?.firstName, m?.lastName].filter(Boolean).join(' ').trim();
+      const liveName = s?.active ? s.displayName : memberName || s?.displayName;
+
       const c = credential.get(email);
       return {
         email,
-        name: s?.displayName ?? [m?.firstName, m?.lastName].filter(Boolean).join(' ') ?? '',
+        name: liveName ?? '',
         role,
         active,
         status: role === 'member' ? (m?.status ?? null) : null,
