@@ -85,6 +85,39 @@ describe('one list', () => {
     expect(JSON.stringify(body)).not.toContain('passwordHash');
   });
 
+  it('shows the name that was typed, not the one the address used to have', async () => {
+    // James Jordan, admin, at an address the venue then wants to belong to
+    // James Browne. One address is one person, so this is a rename, and the
+    // deactivated staff row used to win the name back however many times it
+    // was typed.
+    store.seedStaff({
+      staffId: 'staff-james', email: 'james@example.com', displayName: 'James Jordan',
+      role: 'admin', venueIds: [VENUE_ID], active: true,
+    });
+
+    const body = await (await peopleHandler(call({ action: 'add', email: 'james@example.com', name: 'James Browne', role: 'member' }))).json();
+    // And it says so, rather than reading as if a new person were created.
+    expect(body.message).toMatch(/James Jordan was already at this address and is now James Browne/);
+
+    const people = await list();
+    expect(people.get('james@example.com').name).toBe('James Browne');
+    expect(people.get('james@example.com').role).toBe('member');
+    // Still one person, not two rows for the one address.
+    expect([...people.keys()].filter((e) => e === 'james@example.com')).toHaveLength(1);
+  });
+
+  it('renames somebody who stays staff', async () => {
+    store.seedStaff({
+      staffId: 'staff-dee', email: 'dee@example.com', displayName: 'Dee Door',
+      role: 'door', venueIds: [VENUE_ID], active: true,
+    });
+    await peopleHandler(call({ action: 'add', email: 'dee@example.com', name: 'Dee Manager', role: 'manager' }));
+
+    const people = await list();
+    expect(people.get('dee@example.com').name).toBe('Dee Manager');
+    expect(people.get('dee@example.com').role).toBe('manager');
+  });
+
   it('carries the package each member holds, so the list can show it', async () => {
     await store.members.upsertManual({
       email: 'holder@example.com', firstName: 'Hol', lastName: 'Der', status: 'active',
