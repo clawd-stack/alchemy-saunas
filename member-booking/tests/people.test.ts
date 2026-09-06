@@ -85,6 +85,70 @@ describe('one list', () => {
     expect(JSON.stringify(body)).not.toContain('passwordHash');
   });
 
+  it('takes a removed staff account off the list', async () => {
+    // Remove keeps the staff row, deactivated, so an audit entry naming them
+    // still resolves to a person. That is not a reason to keep showing them on
+    // a screen whose whole job is who is here: pressing Remove and watching
+    // the row sit there reads as a button that does not work.
+    store.seedStaff({
+      staffId: 'staff-gone', email: 'gone@example.com', displayName: 'Gone Away',
+      role: 'door', venueIds: [VENUE_ID], active: true,
+    });
+
+    expect((await list()).has('gone@example.com')).toBe(true);
+    const response = await peopleHandler(call({ email: 'gone@example.com' }, 'DELETE'));
+    expect(response.status).toBe(200);
+    expect((await list()).has('gone@example.com')).toBe(false);
+
+    // Kept underneath, which is the point of deactivating rather than deleting.
+    expect((await store.auth.listStaff()).find((s) => s.email === 'gone@example.com')?.active).toBe(false);
+  });
+
+  it('lets a removed staff address come back as a member with no password', async () => {
+    // The whole sequence somebody actually performs: take an address off
+    // staff, then add it as a member so they can set their own password.
+    store.seedStaff({
+      staffId: 'staff-two-admins', email: 'other@example.com', displayName: 'Other Admin',
+      role: 'admin', venueIds: [VENUE_ID], active: true,
+    });
+    store.seedStaff({
+      staffId: 'staff-james', email: 'james@example.com', displayName: 'James Jordan',
+      role: 'admin', venueIds: [VENUE_ID], active: true,
+    });
+    await store.credentials.setPassword({
+      email: 'james@example.com',
+      passwordHash: await hashPassword('the-admin-password'),
+      mustChange: false,
+    });
+
+    expect((await peopleHandler(call({ email: 'james@example.com' }, 'DELETE'))).status).toBe(200);
+    expect((await list()).has('james@example.com')).toBe(false);
+
+    await peopleHandler(call({ action: 'add', email: 'james@example.com', name: 'James Jordan', role: 'member' }));
+
+    const person = (await list()).get('james@example.com');
+    expect(person.role).toBe('member');
+    // No password, so the claim is open to them.
+    expect(person.signIn).toBe('none');
+    expect(await store.credentials.get('james@example.com')).toBeNull();
+    // And the old admin password is gone with the old account.
+    expect((await loginHandler(login('james@example.com', 'the-admin-password'))).status).toBe(401);
+  });
+
+  it('keeps showing somebody who still has something', async () => {
+    // Suspended, not removed. Their sign-in is off and they must stay visible,
+    // or there is no way to restore it.
+    store.seedStaff({
+      staffId: 'staff-sus', email: 'sus@example.com', displayName: 'Sus Pended',
+      role: 'door', venueIds: [VENUE_ID], active: true,
+    });
+    await peopleHandler(call({ action: 'add', email: 'sus@example.com', name: 'Sus Pended', role: 'door' }));
+    await peopleHandler(call({ email: 'sus@example.com', signIn: false }, 'PATCH'));
+
+    const people = await list();
+    expect(people.get('sus@example.com').signIn).toBe('suspended');
+  });
+
   it('shows the name that was typed, not the one the address used to have', async () => {
     // James Jordan, admin, at an address the venue then wants to belong to
     // James Browne. One address is one person, so this is a rename, and the

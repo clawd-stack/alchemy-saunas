@@ -335,6 +335,17 @@ function merge(staff: StaffRecord[], members: MemberRecord[], credentials: { ema
         staffId: s?.staffId ?? null,
       };
     })
+    // Somebody with nothing left is not on this list. Removing a person
+    // deactivates their staff row rather than deleting it, so an audit entry
+    // naming them still resolves to a person, and that kept row used to show
+    // through here: Remove was pressed, everything it removes was removed, and
+    // the row sat there reading as a button that does not work.
+    //
+    // "Nothing left" is exact: no active staff role, no membership, and no
+    // sign-in. Somebody suspended still has a credential and stays, or there
+    // would be no way to restore them; somebody moved from staff to member has
+    // a membership and stays as a member.
+    .filter((p) => p.role === 'member' || p.active || p.signIn !== 'none')
     .map((p) => ({ ...p, name: p.name || p.email }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
